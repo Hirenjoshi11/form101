@@ -34,10 +34,10 @@ export const Footer: React.FC = () => {
 
             <p className="text-xs text-[#5B6470] leading-relaxed max-w-sm">
               {language === 'gu'
-                ? 'ગુજરાતના નાગરિકો માટે સત્તાવાર સરકારી પ્રમાણપત્ર સહાયતા પોર્ટલ. સાયબર કાફેના ધક્કા વગર ૧૦૦% સચોટ અને સુરક્ષિત સેવા.'
+                ? 'અમે તમારા ફોર્મ સમજવા, ભરવા, ચકાસવા અને સબમિટ કરવાની સંપૂર્ણ પ્રક્રિયા સંભાળીને તમારો સમય બચાવીએ છીએ.'
                 : language === 'hi'
-                ? 'गुजरात के नागरिकों हेतु अधिकृत प्रमाण पत्र सहायता पोर्टल। बिना साइबर कैफे की कतारों के सुरक्षित व त्वरित सेवा।'
-                : 'Your trusted citizen-services filing platform in Gujarat with certified operator assistance and end-to-end data privacy.'}
+                ? 'हम आपके फॉर्म को समझने, भरने, सत्यापित करने और जमा करने की पूरी प्रक्रिया संभालकर आपका समय बचाते हैं।'
+                : 'We save your time by handling the process of learning, filling, verifying, and submitting your forms.'}
             </p>
 
             {/* Direct Contact Links */}

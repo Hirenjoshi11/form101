@@ -100,8 +100,8 @@ export default function AboutPage() {
             <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
               About Form<span className="text-[#159447]">Seva</span> Gujarat
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl">
-              FormSeva connects citizens across Gujarat with certified filing operators who accurately submit applications on Digital Gujarat, AnyRoR, and national government portals.
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl font-medium">
+              We save your time by handling the process of learning, filling, verifying, and submitting your forms on Digital Gujarat, AnyRoR, and national government portals.
             </p>
           </div>
 

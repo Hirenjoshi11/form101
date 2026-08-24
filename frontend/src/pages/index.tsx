@@ -150,13 +150,13 @@ export default function HomePage() {
               )}
             </h1>
 
-            {/* Subheading */}
-            <p className="text-xs sm:text-base text-[#5B6470] leading-relaxed max-w-xl">
+            {/* Subheading Tagline */}
+            <p className="text-sm sm:text-lg text-[#5B6470] leading-relaxed max-w-2xl font-medium">
               {language === 'gu'
-                ? 'અમે સરકારી પોર્ટલ પર તમારા ફોર્મ સચોટ, સુરક્ષિત અને ઝડપથી ભરવામાં સંપૂર્ણ સહાય કરીએ છીએ.'
+                ? 'અમે તમારા ફોર્મ સમજવા, ભરવા, ચકાસવા અને સબમિટ કરવાની સંપૂર્ણ પ્રક્રિયા સંભાળીને તમારો કિંમતી સમય બચાવીએ છીએ.'
                 : language === 'hi'
-                ? 'हम सरकारी पोर्टल पर आपके फॉर्म सटीक, सुरक्षित और आसानी से भरने में पूरी सहायता करते हैं।'
-                : 'We help you fill, verify and submit your Government portal forms accurately and with ease.'}
+                ? 'हम आपके फॉर्म को समझने, भरने, सत्यापित करने और जमा करने की पूरी प्रक्रिया संभालकर आपका समय बचाते हैं।'
+                : 'We save your time by handling the process of learning, filling, verifying, and submitting your forms.'}
             </p>
 
             {/* Action Buttons */}
