@@ -286,6 +286,7 @@ export default function OperatorPage() {
             : 'Operator Workbench – FormSeva Gujarat'}
         </title>
         <meta name="description" content="Certified operator workspace with 1-click field copy and official Gujarat government filing sync" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
 
       <div className="min-h-screen bg-slate-50 text-[#18232D] flex flex-col justify-between">

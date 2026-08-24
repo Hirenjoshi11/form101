@@ -76,6 +76,7 @@ export default function FeedbackPage() {
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Head>
         <title>Citizen Feedback — FormSeva Gujarat</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
       <Navbar />
 

@@ -150,6 +150,7 @@ export default function TrackPage() {
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Head>
         <title>{t.trackApplication} — FormSeva Gujarat</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
       <Navbar />
 

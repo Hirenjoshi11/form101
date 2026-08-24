@@ -429,6 +429,7 @@ export default function AdminPage() {
             : 'Admin Control Center – FormSeva Gujarat'}
         </title>
         <meta name="description" content="Central administrative dashboard for FormSeva Gujarat Government Services" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
 
       <div className="min-h-screen bg-[#F7FAF8] text-[#18232D] flex flex-col">
