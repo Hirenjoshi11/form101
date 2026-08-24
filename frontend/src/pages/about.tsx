@@ -8,7 +8,8 @@ import { ApiService } from '@/lib/api';
 import { CertificateForm } from '@/lib/types';
 import {
   FileText, ShieldCheck, Heart, Users, CheckCircle2,
-  Lock, Sparkles, Building2, MessageSquare, Star, Send, Loader2
+  Lock, Sparkles, Building2, MessageSquare, Star, Send, Loader2,
+  GraduationCap, BookOpen, Award
 } from 'lucide-react';
 
 const FEEDBACK_TYPES = [
@@ -76,84 +77,120 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Head>
-        <title>About FormSeva &amp; Citizen Feedback — Gujarat Platform</title>
+        <title>About Us &amp; 7% Education Pledge — FormSeva Gujarat</title>
         <meta
           name="description"
-          content="Learn about FormSeva Gujarat assisted certificate filing mission and submit citizen feedback."
+          content="Learn about FormSeva Gujarat, our 7% profit education pledge for children, and submit citizen feedback."
         />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
 
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         
         {/* ─── ABOUT US SECTION ─── */}
-        <section className="space-y-6">
+        <section className="space-y-4 sm:space-y-6">
           {/* Header Hero */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[#159447] text-xs font-bold">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 border border-slate-200/80 shadow-xs space-y-2.5 sm:space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[#159447] text-[11px] sm:text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Gujarat Citizen Platform</span>
+              <span>Gujarat Citizen Empowerment</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              About Form<span className="text-[#159447]">Seva</span>
+            <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              About Form<span className="text-[#159447]">Seva</span> Gujarat
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl">
               FormSeva connects citizens across Gujarat with certified filing operators who accurately submit applications on Digital Gujarat, AnyRoR, and national government portals.
             </p>
           </div>
 
+          {/* ─── 7% PROFIT EDUCATION PLEDGE SPOTLIGHT ─── */}
+          <div className="bg-gradient-to-br from-rose-50 via-pink-50 to-amber-50 rounded-2xl sm:rounded-3xl p-5 sm:p-8 border border-rose-200/80 shadow-xs relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-md shadow-rose-500/20 shrink-0">
+                <GraduationCap className="w-8 h-8" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-rose-600 text-white px-2.5 py-0.5 rounded-full">
+                    Our Social Commitment
+                  </span>
+                  <span className="text-xs font-bold text-rose-800">
+                    7% Profit Pledge
+                  </span>
+                </div>
+                <h2 className="text-base sm:text-xl font-black text-slate-900 leading-snug">
+                  {language === 'gu' ? (
+                    'અમારા નફાના ૭% બાળકોના શિક્ષણ અને ઉજ્જવળ શિક્ષિત ભવિષ્ય માટે ઉપયોગમાં લેવાશે.'
+                  ) : language === 'hi' ? (
+                    'हमारे मुनाफे का 7% बच्चों की शिक्षा और एक बेहतर शिक्षित भविष्य के लिए उपयोग किया जाएगा।'
+                  ) : (
+                    '7% of our profit will be used in education of children, for a better educated future.'
+                  )}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  {language === 'gu'
+                    ? 'દર વખતે જ્યારે તમે FormSeva નો ઉપયોગ કરો છો, ત્યારે તમે ગુજરાતના ગ્રામીણ અને વંચિત બાળકોના ડિજિટલ શિક્ષણ, પુસ્તકો અને શિષ્યવૃત્તિમાં સીધું યોગદાન આપો છો.'
+                    : language === 'hi'
+                    ? 'हर बार जब आप FormSeva का उपयोग करते हैं, तो आप ग्रामीण गुजरात के बच्चों की डिजिटल शिक्षा और बेहतर भविष्य में योगदान करते हैं।'
+                    : 'Every time you file through FormSeva, you directly support rural digital literacy, school books, and scholarships for children across Gujarat.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* 3 Core Pillars */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs space-y-1.5 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
                 <FileText className="w-4 h-4" />
               </div>
-              <h3 className="font-bold text-sm text-slate-900">Assisted Filing</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                No cyber café queues. Trained operators ensure error-free data entry and document upload.
+              <h3 className="font-bold text-xs sm:text-sm text-slate-900">Assisted Filing</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                Zero cyber café queues. Certified operators ensure accurate data entry and instant submission.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs space-y-1.5 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
                 <ShieldCheck className="w-4 h-4" />
               </div>
-              <h3 className="font-bold text-sm text-slate-900">DPDP Act 2023 Compliant</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Zero automated SMS/call snooping. OTPs are securely typed by citizens with explicit consent.
+              <h3 className="font-bold text-xs sm:text-sm text-slate-900">DPDP Act 2023</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                No automated background SMS snooping. OTPs are securely and manually entered by citizens.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs space-y-1.5 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-100 text-[#159447] flex items-center justify-center font-bold">
                 <Heart className="w-4 h-4 text-rose-500" />
               </div>
-              <h3 className="font-bold text-sm text-slate-900">7% Education Pledge</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                7% of platform profits directly fund digital education initiatives for children in rural Gujarat.
+              <h3 className="font-bold text-xs sm:text-sm text-slate-900">Education Support</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                7% platform profit earmarked for rural school digital labs and educational development.
               </p>
             </div>
           </div>
 
           {/* Supported Portals */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-3">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs space-y-2.5 sm:space-y-3">
             <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">
               Supported Gujarat Government Systems
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
-                <Building2 className="w-4 h-4 text-slate-600 mt-0.5" />
+                <Building2 className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
                 <div>
                   <span className="font-bold text-slate-900 block">Digital Gujarat Portal</span>
-                  <span className="text-slate-500">Income, Caste, EWS, Non-Creamy Layer, Character Certificates</span>
+                  <span className="text-[11px] sm:text-xs text-slate-500">Income, Caste, EWS, Non-Creamy Layer, Character Certificates</span>
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
-                <Building2 className="w-4 h-4 text-slate-600 mt-0.5" />
+                <Building2 className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
                 <div>
                   <span className="font-bold text-slate-900 block">AnyRoR &amp; Revenue Dept</span>
-                  <span className="text-slate-500">7/12 Land Records, 8-A Khata Extracts, e-Dhara services</span>
+                  <span className="text-[11px] sm:text-xs text-slate-500">7/12 Land Records, 8-A Khata Extracts, e-Dhara services</span>
                 </div>
               </div>
             </div>
@@ -163,11 +200,11 @@ export default function AboutPage() {
         {/* ─── AT THE BELOW: CITIZEN FEEDBACK & SUGGESTIONS ─── */}
         <section id="feedback" className="pt-2">
           {submitted ? (
-            <div className="bg-white rounded-3xl p-8 border border-emerald-200 shadow-xs text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-[#159447] flex items-center justify-center mx-auto shadow-2xs">
-                <CheckCircle2 className="w-8 h-8" />
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-emerald-200 shadow-xs text-center space-y-3 sm:space-y-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-100 text-[#159447] flex items-center justify-center mx-auto shadow-2xs">
+                <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8" />
               </div>
-              <h2 className="text-xl font-black text-slate-900">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
                 {language === 'gu' ? 'તમારા પ્રતિસાદ બદલ આભાર!' : 'Thank You for Your Feedback!'}
               </h2>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -179,17 +216,17 @@ export default function AboutPage() {
                   setSubmitted(false);
                   setMessage('');
                 }}
-                className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
               >
                 Submit another response
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-5">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 border border-slate-200/90 shadow-xs space-y-4 sm:space-y-5">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="w-5 h-5 text-[#159447]" />
-                  <h2 className="text-xl font-black text-slate-900">
+                  <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-[#159447]" />
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
                     {language === 'gu' ? 'નાગરિક પ્રતિસાદ અને સૂચનો' : 'Citizen Feedback & Suggestions'}
                   </h2>
                 </div>
@@ -204,13 +241,13 @@ export default function AboutPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmitFeedback} className="space-y-4">
+              <form onSubmit={handleSubmitFeedback} className="space-y-3.5 sm:space-y-4">
                 {/* Star Rating */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Your Rating
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -218,10 +255,10 @@ export default function AboutPage() {
                         onClick={() => setRating(star)}
                         onMouseEnter={() => setHoverRating(star)}
                         onMouseLeave={() => setHoverRating(0)}
-                        className="p-1 text-2xl transition hover:scale-110"
+                        className="p-1 transition hover:scale-110"
                       >
                         <Star
-                          className={`w-6 h-6 ${
+                          className={`w-6 h-6 sm:w-7 sm:h-7 ${
                             (hoverRating || rating) >= star
                               ? 'text-amber-400 fill-amber-400'
                               : 'text-slate-200'
@@ -229,7 +266,7 @@ export default function AboutPage() {
                         />
                       </button>
                     ))}
-                    <span className="text-xs font-bold text-slate-600 ml-2">
+                    <span className="text-xs font-bold text-slate-600 ml-1.5">
                       {rating} / 5 Stars
                     </span>
                   </div>

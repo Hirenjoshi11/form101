@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { DynamicFormStep } from '@/components/DynamicFormStep';
@@ -160,18 +161,19 @@ export default function FormDetailPage() {
       <Head>
         <title>{getTitle(form)} — FormSeva Gujarat</title>
         <meta name="description" content={`Apply for ${form.title_en} online through FormSeva Gujarat.`} />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
         
         {/* Header Strip */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mb-1">
-              <button onClick={() => router.push('/forms')} className="hover:text-[#159447] transition">
+              <Link href="/#services-catalog" className="hover:text-[#159447] transition">
                 {language === 'gu' ? 'સેવાઓ' : language === 'hi' ? 'सेवाएं' : 'Services'}
-              </button>
+              </Link>
               <ChevronRight className="w-3.5 h-3.5" />
               <span className="text-slate-700">{getTitle(form)}</span>
             </div>

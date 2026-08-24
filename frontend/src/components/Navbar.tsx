@@ -33,11 +33,6 @@ export const Navbar: React.FC = () => {
       icon: Activity
     },
     {
-      href: '/rates',
-      label: language === 'gu' ? 'દર પત્રક' : language === 'hi' ? 'शुल्क दरें' : 'Rates',
-      icon: CreditCard
-    },
-    {
       href: '/about',
       label: language === 'gu' ? 'અમારા વિશે' : language === 'hi' ? 'हमारे बारे में' : 'About Us',
       icon: Info
