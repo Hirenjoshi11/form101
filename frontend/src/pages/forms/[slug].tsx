@@ -236,7 +236,7 @@ export default function FormDetailPage() {
         ) : (
           <>
             {/* Step Breadcrumb Indicator */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
               {STEPS.map((s, idx) => {
                 const isCurrent = s === step;
                 const isDone = idx < currentStepIdx;
@@ -246,7 +246,7 @@ export default function FormDetailPage() {
                     onClick={() => {
                       if (idx <= currentStepIdx) setStep(s);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                       isCurrent
                         ? 'bg-[#18232D] text-white shadow-xs'
                         : isDone
@@ -262,7 +262,7 @@ export default function FormDetailPage() {
             </div>
 
             {/* Step Form Box */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-7 shadow-xs">
               {step !== 'documents' && step !== 'review' && (
                 <DynamicFormStep
                   fields={(form.fields || []).filter(f => f.step_section === step)}
@@ -287,11 +287,11 @@ export default function FormDetailPage() {
                   </h2>
 
                   {Object.keys(fieldValues).length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 rounded-xl p-4 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 rounded-2xl p-4 text-xs">
                       {Object.entries(fieldValues).map(([k, v]) => (
-                        <div key={k} className="flex flex-col">
+                        <div key={k} className="flex flex-col break-words">
                           <span className="font-semibold text-slate-500 capitalize">{k.replace(/_/g, ' ')}</span>
-                          <span className="font-bold text-slate-900">{String(v)}</span>
+                          <span className="font-bold text-slate-900 break-words">{String(v)}</span>
                         </div>
                       ))}
                     </div>
@@ -300,23 +300,23 @@ export default function FormDetailPage() {
                   )}
 
                   {Object.keys(uploadedDocs).length > 0 && (
-                    <div className="bg-slate-50 rounded-xl p-4 text-xs space-y-1.5">
+                    <div className="bg-slate-50 rounded-2xl p-4 text-xs space-y-1.5">
                       <span className="font-bold text-slate-700 block mb-1">Attached Documents:</span>
                       {Object.keys(uploadedDocs).map(k => (
-                        <div key={k} className="flex items-center gap-1.5 text-emerald-800">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{k} ({uploadedDocs[k].name})</span>
+                        <div key={k} className="flex items-center gap-1.5 text-emerald-800 break-words">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="break-words">{k} ({uploadedDocs[k].name})</span>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {/* Fee Breakdown & Pay Button */}
-                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <span className="text-xs text-emerald-800 font-medium block">{t.totalFeeLabel}</span>
                       <div className="text-2xl font-black text-slate-900">₹{form.official_fee + form.service_fee}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-[11px] text-slate-500 mt-0.5">
                         Govt Fee: ₹{form.official_fee} + Assisted Service: ₹{form.service_fee}
                       </div>
                     </div>
@@ -324,7 +324,7 @@ export default function FormDetailPage() {
                     <button
                       onClick={handleSubmit}
                       disabled={submitting}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs disabled:opacity-50 transition"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-6 py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-sm disabled:opacity-50 transition"
                     >
                       {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                       <span>{t.submitAndPay} (₹{form.official_fee + form.service_fee})</span>
@@ -338,7 +338,7 @@ export default function FormDetailPage() {
                 <button
                   onClick={handlePrev}
                   disabled={currentStepIdx === 0}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 transition"
+                  className="min-h-[44px] px-4 sm:px-5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 transition"
                 >
                   {t.previousStep}
                 </button>
@@ -346,10 +346,10 @@ export default function FormDetailPage() {
                 {step !== 'review' && (
                   <button
                     onClick={handleNext}
-                    className="inline-flex items-center gap-1 px-5 py-2 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition"
+                    className="inline-flex items-center gap-1.5 min-h-[44px] px-5 sm:px-6 py-2 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs transition"
                   >
                     <span>{t.nextStep}</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 )}
               </div>

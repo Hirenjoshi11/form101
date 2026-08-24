@@ -161,7 +161,7 @@ export default function FeedbackPage() {
                   <select
                     value={feedbackType}
                     onChange={(e) => setFeedbackType(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                   >
                     {FEEDBACK_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -178,7 +178,7 @@ export default function FeedbackPage() {
                   <select
                     value={serviceId}
                     onChange={(e) => setServiceId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                   >
                     <option value="general">General (All Services)</option>
                     {forms.map((f) => (
@@ -200,7 +200,7 @@ export default function FeedbackPage() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Tell us about your filing experience or suggest improvements..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30 resize-none"
+                  className="w-full min-h-[88px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30 resize-none"
                   required
                 />
               </div>
@@ -215,7 +215,7 @@ export default function FeedbackPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your Name"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                   />
                 </div>
                 <div>
@@ -227,7 +227,7 @@ export default function FeedbackPage() {
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value)}
                     placeholder="+91..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                   />
                 </div>
               </div>
@@ -235,10 +235,10 @@ export default function FeedbackPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-2.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full min-h-[44px] py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <Send className="w-3.5 h-3.5" />
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <Send className="w-4 h-4" />
                 <span>Submit Feedback</span>
               </button>
             </form>

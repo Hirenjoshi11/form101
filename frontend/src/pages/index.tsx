@@ -270,19 +270,21 @@ export default function HomePage() {
         </div>
 
         {/* Services Grid (Mobile & Desktop Responsive) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
           {filteredForms.map((form) => (
-            <div
+            <Link
               key={form.id || form.slug}
-              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-sm hover:border-[#159447]/40 transition-all flex flex-col justify-between group"
+              href={`/forms/${form.slug}`}
+              className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-md hover:border-[#159447]/50 hover:-translate-y-0.5 transition-all flex flex-col justify-between group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#159447] focus-visible:ring-offset-2"
+              aria-label={`Apply for ${getTitle(form)}`}
             >
               <div className="space-y-2.5 sm:space-y-3">
                 {/* Header: Icon & Dept */}
                 <div className="flex items-start justify-between gap-3">
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-emerald-50/50 group-hover:border-emerald-200/60 transition shrink-0">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-emerald-50/70 group-hover:border-emerald-200/80 transition shrink-0">
                     <FormIcon slug={form.slug} size="md" />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 truncate max-w-[150px]">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 truncate max-w-[150px]">
                     {form.slug.replace(/_/g, ' ')}
                   </span>
                 </div>
@@ -292,33 +294,30 @@ export default function HomePage() {
                   <h3 className="font-bold text-slate-900 text-sm sm:text-base group-hover:text-[#159447] transition-colors leading-snug">
                     {getTitle(form)}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                     {getDesc(form)}
                   </p>
                 </div>
               </div>
 
               {/* Bottom Meta & Action */}
-              <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2.5 sm:gap-3 text-slate-500">
                   <span className="flex items-center gap-1 font-semibold text-slate-600">
-                    <Clock className="w-3 h-3 text-amber-500" />
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
                     {form.turnaround_days}d
                   </span>
-                  <span className="font-bold text-slate-900 font-mono">
+                  <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm">
                     ₹{form.official_fee + form.service_fee}
                   </span>
                 </div>
 
-                <Link
-                  href={`/forms/${form.slug}`}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-2xs transition"
-                >
-                  <span>Apply</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
+                <span className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#159447] group-hover:bg-[#12803c] text-white text-xs font-bold shadow-2xs group-hover:shadow transition-all">
+                  <span>{language === 'gu' ? 'અરજી કરો' : language === 'hi' ? 'आवेदन करें' : 'Apply'}</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 

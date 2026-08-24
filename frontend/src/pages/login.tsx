@@ -102,7 +102,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('citizen')}
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition shadow-2xs"
               >
                 <User className="w-4 h-4 mb-1 text-emerald-700" />
                 <span>Citizen</span>
@@ -110,7 +110,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('operator')}
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs"
               >
                 <UserCheck className="w-4 h-4 mb-1 text-amber-700" />
                 <span>Operator</span>
@@ -118,7 +118,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('admin')}
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold transition"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold transition shadow-2xs"
               >
                 <ShieldCheck className="w-4 h-4 mb-1 text-blue-700" />
                 <span>Admin</span>
@@ -140,19 +140,19 @@ export default function LoginPage() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleManualLogin} className="space-y-3.5">
+          <form onSubmit={handleManualLogin} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
                 Email or Mobile Number
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com / 98250..."
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                  className="w-full min-h-[44px] pl-10 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                 />
               </div>
             </div>
@@ -162,20 +162,20 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-9 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+                  className="w-full min-h-[44px] pl-10 pr-10 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -183,9 +183,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="w-full min-h-[44px] py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>Sign In</span>
             </button>
           </form>

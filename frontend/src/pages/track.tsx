@@ -191,10 +191,10 @@ export default function TrackPage() {
         {/* Filter Tabs & Search Bar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Segmented Control Tabs */}
-          <div className="flex items-center bg-slate-200/70 p-1 rounded-xl border border-slate-300/40 self-start">
+          <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl border border-slate-300/40 overflow-x-auto scrollbar-none self-start max-w-full">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
                 activeTab === 'all'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -204,7 +204,7 @@ export default function TrackPage() {
             </button>
             <button
               onClick={() => setActiveTab('in_progress')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
                 activeTab === 'in_progress'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -214,26 +214,26 @@ export default function TrackPage() {
             </button>
             <button
               onClick={() => setActiveTab('approved')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
                 activeTab === 'approved'
                   ? 'bg-white text-emerald-800 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Award className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Ready / Approved ({approvedCount})</span>
+              <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Approved ({approvedCount})</span>
             </button>
           </div>
 
           {/* Search Box */}
-          <div className="relative flex-1 max-w-xs">
+          <div className="relative flex-1 max-w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search by app ID or name..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#159447]/30 text-xs bg-white"
+              className="w-full min-h-[40px] pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#159447]/30 text-xs bg-white"
             />
           </div>
         </div>
