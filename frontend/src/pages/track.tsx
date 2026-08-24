@@ -4,16 +4,12 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { ApiService } from '@/lib/api';
-import { FormSubmission } from '@/lib/types';
+import { FormSubmission, OtpRequest } from '@/lib/types';
 import { downloadCertificatePdf, downloadReceiptPdf } from '@/lib/certificatePdf';
+import { OtpModal } from '@/components/OtpModal';
 import {
-  Search,
-  FileText,
-  Clock,
-  CheckCircle2,
-  Loader2,
-  Download,
-  Award
+  Search, FileText, Clock, CheckCircle2, Loader2,
+  Download, Award, KeyRound, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -21,7 +17,7 @@ const STATUS_COLOR: Record<string, string> = {
   submitted: 'bg-blue-50 text-blue-700 border-blue-200',
   in_review: 'bg-amber-50 text-amber-700 border-amber-200',
   operator_filling: 'bg-purple-50 text-purple-700 border-purple-200',
-  awaiting_otp: 'bg-orange-50 text-orange-700 border-orange-200',
+  awaiting_otp: 'bg-orange-100 text-orange-800 border-orange-300 font-bold animate-pulse',
   otp_received: 'bg-blue-50 text-blue-700 border-blue-200',
   submitted_to_govt_portal: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   approved: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold',
@@ -36,15 +32,17 @@ export default function TrackPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'approved' | 'in_progress'>('all');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  // OTP handling
+  const [activeOtpModal, setActiveOtpModal] = useState<OtpRequest | null>(null);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  useEffect(() => {
+  const loadSubmissions = () => {
     const user = ApiService.getCurrentUser();
     if (!user) {
-      // Auto-login as demo citizen
       ApiService.login('citizen@formseva.in', 'citizen', 'Gujarat Citizen', '9999999999')
         .then(() => ApiService.getMySubmissions())
         .then(setSubmissions)
@@ -52,9 +50,13 @@ export default function TrackPage() {
     } else {
       ApiService.getMySubmissions().then(setSubmissions).finally(() => setLoading(false));
     }
+  };
+
+  useEffect(() => {
+    loadSubmissions();
 
     const handleUpdate = () => {
-      ApiService.getMySubmissions().then(setSubmissions);
+      loadSubmissions();
     };
     window.addEventListener('formseva_data_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
@@ -70,7 +72,8 @@ export default function TrackPage() {
       submitted: { gu: t.statusSubmitted, hi: t.statusSubmitted, en: t.statusSubmitted },
       in_review: { gu: t.statusInReview, hi: t.statusInReview, en: t.statusInReview },
       operator_filling: { gu: t.statusOperatorFilling, hi: t.statusOperatorFilling, en: t.statusOperatorFilling },
-      awaiting_otp: { gu: t.statusAwaitingOtp, hi: t.statusAwaitingOtp, en: t.statusAwaitingOtp },
+      awaiting_otp: { gu: 'OTP ની રાહ છે (Awaiting OTP)', hi: 'OTP प्रतीक्षित', en: 'Awaiting OTP' },
+      otp_received: { gu: 'OTP મળેલ છે', hi: 'OTP प्राप्त', en: 'OTP Submitted' },
       submitted_to_govt_portal: { gu: 'સરકારી પોર્ટલ પર ફાઇલ થયેલ', hi: 'सरकारी पोर्टल पर दर्ज', en: 'Filed on Govt Portal' },
       approved: { gu: t.statusApproved, hi: t.statusApproved, en: t.statusApproved },
       rejected: { gu: t.statusRejected, hi: t.statusRejected, en: t.statusRejected },
@@ -95,7 +98,6 @@ export default function TrackPage() {
   });
 
   const handleDownloadCertificate = (sub: FormSubmission) => {
-    // If operator uploaded a specific certificate file
     if (sub.certificate_url) {
       const link = document.createElement('a');
       link.href = sub.certificate_url;
@@ -103,161 +105,157 @@ export default function TrackPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      showToast(
-        language === 'gu'
-          ? 'પ્રમાણપત્ર PDF ડાઉનલોડ થઈ રહ્યું છે...'
-          : language === 'hi'
-          ? 'प्रमाण पत्र PDF डाउनलोड हो रहा है...'
-          : 'Downloading Certificate PDF...'
-      );
+      showToast('Downloading Certificate PDF...');
       return;
     }
-
-    // Generate digitally signed official PDF
-    showToast(
-      language === 'gu'
-        ? 'પ્રમાણપત્ર PDF જનરેટ થઈ રહ્યું છે...'
-        : language === 'hi'
-        ? 'प्रमाण पत्र PDF जनरेट हो रहा है...'
-        : 'Generating Certificate PDF...'
-    );
+    showToast('Generating Certificate PDF...');
     downloadCertificatePdf(sub, language);
   };
 
   const handleDownloadReceipt = (sub: FormSubmission) => {
-    showToast(
-      language === 'gu'
-        ? 'અરજી રસીદ PDF ડાઉનલોડ થઈ રહી છે...'
-        : language === 'hi'
-        ? 'आवेदन रसीद PDF डाउनलोड हो रही है...'
-        : 'Downloading Application Receipt PDF...'
-    );
+    showToast('Downloading Application Receipt...');
     downloadReceiptPdf(sub, language);
+  };
+
+  const handleOpenOtp = (sub: FormSubmission) => {
+    setActiveOtpModal({
+      id: `otp_${sub.id}`,
+      submission_id: sub.id,
+      operator_id: sub.assigned_operator_id || 'operator_1',
+      otp_sequence_number: 1,
+      otp_purpose_en: 'Digital Gujarat Portal Assisted Verification',
+      otp_purpose_gu: 'ડિજિટલ ગુજરાત પોર્ટલ ચકાસણી માટે OTP',
+      otp_purpose_hi: 'डिजिटल गुजरात पोर्टल सत्यापन हेतु OTP',
+      status: 'requested',
+      requested_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 10 * 60000).toISOString(),
+    });
+  };
+
+  const handleSubmitOtp = async (code: string) => {
+    if (!activeOtpModal) return;
+    try {
+      await ApiService.submitOtp(activeOtpModal.id, code);
+      showToast('OTP Submitted successfully to Operator!');
+      setActiveOtpModal(null);
+      loadSubmissions();
+    } catch (e) {
+      alert('Error submitting OTP');
+    }
   };
 
   const approvedCount = submissions.filter(s => s.status === 'approved' || Boolean(s.certificate_url)).length;
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <Head>
-        <title>{t.trackApplication} — Form_Seva Gujarat</title>
+        <title>{t.trackApplication} — FormSeva Gujarat</title>
       </Head>
       <Navbar />
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
-          <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-medium">{toastMsg}</span>
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMsg}</span>
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        
         {/* Page Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {t.navMyForms}
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {language === 'gu' ? 'મારી અરજીઓ અને ટ્રેકિંગ' : language === 'hi' ? 'मेरे आवेदन व ट्रैकिंग' : 'My Applications & Status'}
             </h1>
-            <p className="text-slate-500 text-sm mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               {language === 'gu'
-                ? 'તમારી અરજીઓનું લાઈવ સ્ટેટસ અને મંજૂર પ્રમાણપત્ર ડાઉનલોડ કરો'
+                ? 'લાઈવ સ્ટેટસ જુઓ, ઓપરેટરને OTP આપો અને પ્રમાણપત્ર ડાઉનલોડ કરો'
                 : language === 'hi'
-                ? 'अपने आवेदनों की लाइव स्थिति और स्वीकृत प्रमाण पत्र डाउनलोड करें'
+                ? 'लाइव स्थिति देखें, ऑपरेटर को OTP दें और प्रमाण पत्र डाउनलोड करें'
                 : 'Track your live applications and download approved government certificates'}
             </p>
           </div>
 
-          {approvedCount > 0 && (
-            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-xl text-xs font-semibold">
-              <Award className="w-4 h-4 text-emerald-600" />
-              <span>
-                {approvedCount} {language === 'gu' ? 'પ્રમાણપત્ર તૈયાર છે' : language === 'hi' ? 'प्रमाण पत्र तैयार है' : 'Certificate Ready for PDF Download'}
-              </span>
-            </div>
-          )}
+          <button
+            onClick={loadSubmissions}
+            className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </button>
         </div>
 
         {/* Filter Tabs & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
-          {/* Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Segmented Control Tabs */}
+          <div className="flex items-center bg-slate-200/70 p-1 rounded-xl border border-slate-300/40 self-start">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 activeTab === 'all'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {language === 'gu' ? 'બધી અરજીઓ' : language === 'hi' ? 'सभी आवेदन' : 'All Forms'} ({submissions.length})
+              All ({submissions.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('in_progress')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                activeTab === 'in_progress'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              In Progress
             </button>
             <button
               onClick={() => setActiveTab('approved')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                 activeTab === 'approved'
-                  ? 'bg-white text-emerald-800 shadow-sm'
+                  ? 'bg-white text-emerald-800 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Award className="w-3.5 h-3.5 text-emerald-600" />
-              {language === 'gu' ? 'મંજૂર / તૈયાર PDF' : language === 'hi' ? 'स्वीकृत / PDF' : 'Ready (PDF)'} ({approvedCount})
-            </button>
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                activeTab === 'in_progress'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {language === 'gu' ? 'ચાલુ અરજીઓ' : language === 'hi' ? 'प्रक्रियाधीन' : 'In Progress'}
+              <span>Ready / Approved ({approvedCount})</span>
             </button>
           </div>
 
           {/* Search Box */}
           <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={
-                language === 'gu'
-                  ? 'અરજી નંબર અથવા નામ શોધો...'
-                  : language === 'hi'
-                  ? 'आवेदन नंबर या नाम खोजें...'
-                  : 'Search by app no. or name...'
-              }
-              className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-govt-300 outline-none text-xs bg-white"
+              placeholder="Search by app ID or name..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#159447]/30 text-xs bg-white"
             />
           </div>
         </div>
 
-        {/* Content list */}
+        {/* Submissions List */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200">
-            <Loader2 className="w-8 h-8 animate-spin text-govt-600 mb-3" />
-            <p className="text-xs text-slate-500">
-              {language === 'gu' ? 'અરજીઓ લોડ થઈ રહી છે...' : language === 'hi' ? 'आवेदन लोड हो रहे हैं...' : 'Loading applications...'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-200">
+            <Loader2 className="w-7 h-7 animate-spin text-[#159447] mb-2" />
+            <p className="text-xs text-slate-400">Loading applications...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 px-4 bg-white border border-slate-200 rounded-2xl">
-            <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-            <p className="text-base font-semibold text-slate-700">
-              {language === 'gu' ? 'કોઈ અરજી મળી નથી' : language === 'hi' ? 'कोई आवेदन नहीं मिला' : 'No applications found'}
-            </p>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              {query ? 'Try adjusting your search criteria.' : 'You have not submitted any certificate applications yet.'}
+          <div className="text-center py-14 px-4 bg-white border border-slate-200 rounded-2xl space-y-2">
+            <FileText className="w-10 h-10 mx-auto text-slate-300" />
+            <p className="text-sm font-bold text-slate-700">No applications found</p>
+            <p className="text-xs text-slate-400">
+              {query ? 'No match for search term.' : 'You have not submitted any certificate applications yet.'}
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {filtered.map(sub => {
               const isApproved = sub.status === 'approved';
+              const isAwaitingOtp = sub.status === 'awaiting_otp';
               const hasPdf = Boolean(
                 sub.certificate_url ||
                 isApproved ||
@@ -267,120 +265,85 @@ export default function TrackPage() {
               return (
                 <div
                   key={sub.id}
-                  className={`bg-white border rounded-2xl p-5 sm:p-6 transition-all hover:shadow-md ${
-                    isApproved
-                      ? 'border-emerald-200 ring-1 ring-emerald-100'
-                      : 'border-slate-200'
+                  className={`bg-white border rounded-2xl p-5 transition-all shadow-2xs ${
+                    isAwaitingOtp
+                      ? 'border-orange-300 ring-2 ring-orange-200 bg-orange-50/20'
+                      : isApproved
+                      ? 'border-emerald-200'
+                      : 'border-slate-200/90'
                   }`}
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     
-                    {/* Left Side: Icon, Title, Status & Details */}
-                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                      <div
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                          isApproved
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-govt-100 text-govt-700'
-                        }`}
-                      >
-                        {isApproved ? (
-                          <Award className="w-6 h-6 text-emerald-700" />
-                        ) : (
-                          <FileText className="w-5 h-5" />
-                        )}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      {/* Title & Status */}
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="font-black text-base text-slate-900">
+                          {getTitle(sub)}
+                        </span>
+                        <span
+                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            STATUS_COLOR[sub.status] ?? 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}
+                        >
+                          {getStatusLabel(sub.status)}
+                        </span>
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        {/* Title and Status Badge */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-slate-900 text-base sm:text-lg">
-                            {getTitle(sub)}
-                          </p>
-                          <span
-                            className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                              STATUS_COLOR[sub.status] ?? 'bg-slate-100 text-slate-500 border-slate-200'
-                            }`}
-                          >
-                            {getStatusLabel(sub.status)}
+                      {/* App ID & Dates */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
+                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-700">
+                          {sub.application_number}
+                        </span>
+                        {sub.govt_portal_application_id && (
+                          <span className="text-slate-700">
+                            Govt Ref: <strong>{sub.govt_portal_application_id}</strong>
                           </span>
-                        </div>
-
-                        {/* Application ID & Govt Ref */}
-                        <div className="flex items-center gap-2 text-xs font-mono text-slate-400 mt-1 flex-wrap">
-                          <span>App ID: {sub.application_number}</span>
-                          {sub.govt_portal_application_id && (
-                            <>
-                              <span>&bull;</span>
-                              <span className="text-slate-600 font-semibold">Govt Ref: {sub.govt_portal_application_id}</span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Details Strip */}
-                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-amber-500" />
-                            {new Date(sub.submitted_at).toLocaleDateString('en-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </span>
-
-                          <span>
-                            Fee: <strong className="text-slate-800 font-semibold">₹{sub.total_fee}</strong> (
-                            <span
-                              className={
-                                sub.payment_status === 'paid'
-                                  ? 'text-emerald-700 font-bold'
-                                  : 'text-amber-600 font-semibold'
-                              }
-                            >
-                              {sub.payment_status.toUpperCase()}
-                            </span>
-                            )
-                          </span>
-
-                          {sub.assigned_operator_name && (
-                            <span>
-                              Operator: <strong className="text-slate-700">{sub.assigned_operator_name}</strong>
-                            </span>
-                          )}
-
-                          <button
-                            onClick={() => handleDownloadReceipt(sub)}
-                            className="text-slate-600 hover:text-slate-900 font-medium underline flex items-center gap-1 cursor-pointer"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-slate-400" />
-                            {language === 'gu' ? 'રસીદ (Receipt)' : language === 'hi' ? 'रसीद' : 'Receipt'}
-                          </button>
-                        </div>
-
-                        {/* Operator Notes if any */}
-                        {sub.operator_notes && (
-                          <div className="mt-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-slate-600">
-                            <strong className="text-slate-700">
-                              {language === 'gu' ? 'ઓપરેટર નોંધ:' : language === 'hi' ? 'ऑपरेटर टिप्पणी:' : 'Operator Note:'}
-                            </strong>{' '}
-                            {sub.operator_notes}
-                          </div>
                         )}
+                        <span>•</span>
+                        <span>{new Date(sub.submitted_at).toLocaleDateString('en-IN')}</span>
+                        <span>•</span>
+                        <span>Fee: <strong>₹{sub.total_fee}</strong> ({sub.payment_status})</span>
                       </div>
+
+                      {/* Operator Note if available */}
+                      {sub.operator_notes && (
+                        <div className="text-xs bg-slate-50 border border-slate-100 rounded-lg p-2 text-slate-600">
+                          <strong>Note:</strong> {sub.operator_notes}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Middle of Right Side: Simple Download Button if PDF uploaded by operator / approved */}
-                    {hasPdf && (
-                      <div className="flex items-center justify-start md:justify-center self-start md:self-center shrink-0 pl-14 md:pl-0">
+                    {/* Right Side Actions */}
+                    <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                      {isAwaitingOtp && (
+                        <button
+                          onClick={() => handleOpenOtp(sub)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-xs animate-bounce"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>{language === 'gu' ? 'OTP દાખલ કરો' : 'Submit OTP'}</span>
+                        </button>
+                      )}
+
+                      {hasPdf && (
                         <button
                           onClick={() => handleDownloadCertificate(sub)}
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold transition shadow-sm hover:shadow active:scale-95 cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition"
                         >
-                          <Download className="w-4 h-4" />
-                          <span>{language === 'gu' ? 'ડાઉનલોડ કરો' : language === 'hi' ? 'डाउनलोड करें' : 'Download'}</span>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF</span>
                         </button>
-                      </div>
-                    )}
+                      )}
+
+                      <button
+                        onClick={() => handleDownloadReceipt(sub)}
+                        className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold"
+                        title="Download Receipt"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
                   </div>
                 </div>
@@ -388,8 +351,18 @@ export default function TrackPage() {
             })}
           </div>
         )}
-      </div>
+      </main>
+
+      {activeOtpModal && (
+        <OtpModal
+          otpRequest={activeOtpModal}
+          isOpen={Boolean(activeOtpModal)}
+          onClose={() => setActiveOtpModal(null)}
+          onSubmitOtp={handleSubmitOtp}
+        />
+      )}
+
       <Footer />
-    </>
+    </div>
   );
 }

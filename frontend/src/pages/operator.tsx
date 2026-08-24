@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
 import { ApiService, mockOperators } from '@/lib/api';
 import { FormSubmission, Operator } from '@/lib/types';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -286,84 +288,55 @@ export default function OperatorPage() {
         <meta name="description" content="Certified operator workspace with 1-click field copy and official Gujarat government filing sync" />
       </Head>
 
-      <div className="min-h-screen bg-[#F7FAF8] text-[#18232D] flex flex-col">
+      <div className="min-h-screen bg-slate-50 text-[#18232D] flex flex-col justify-between">
         
+        <Navbar />
+
         {/* Toast Alert */}
         {toast && (
-          <div className="fixed bottom-6 right-6 z-50 bg-[#18232D] text-white px-5 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 animate-slide-up text-sm font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-[#159447]" />
+          <div className="fixed bottom-6 right-6 z-50 bg-[#18232D] text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 text-[#159447]" />
             <span>{toast}</span>
           </div>
         )}
 
-        {/* ─── OPERATOR NAVBAR ─── */}
-        <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16 sm:h-20">
-              
-              {/* Brand Emblem */}
-              <div className="flex items-center gap-4">
-                <Link href="/" className="flex items-center gap-3 group">
-                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-xs border border-slate-200 p-1 group-hover:scale-105 transition-transform overflow-hidden">
-                    <img src="/icon.png" alt="FormSeva" className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <div className="font-black text-xl sm:text-2xl text-[#18232D] tracking-tight leading-none flex items-center gap-2">
-                      <span>Form<span className="text-[#159447]">Seva</span></span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider bg-emerald-700 text-white px-2 py-0.5 rounded-md">
-                        OPERATOR
-                      </span>
-                    </div>
-                    <p className="text-[9px] text-[#5B6470] font-bold tracking-widest uppercase mt-0.5">
-                      Certified Filing Workbench • 1-Click Copy Enabled
-                    </p>
-                  </div>
-                </Link>
-              </div>
+        {/* ─── WORKBENCH SUB-HEADER STRIP ─── */}
+        <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Workbench:</span>
+              <h1 className="text-sm font-black text-slate-900">Assisted Filing Console</h1>
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                1-Click Copy Sync
+              </span>
+            </div>
 
-              {/* Operator Switcher (Demo / Testing convenience) */}
-              <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 p-1.5 rounded-xl text-xs">
-                <span className="text-[#5B6470] font-bold pl-2">Active Specialist:</span>
-                <select
-                  value={selectedOperatorId}
-                  onChange={e => setSelectedOperatorId(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#18232D] focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
-                >
-                  {operators.map(op => (
-                    <option key={op.id} value={op.id}>
-                      {op.full_name} ({op.district})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Right Controls */}
-              <div className="flex items-center gap-3">
-                <LanguageSwitcher />
-
-                <Link
-                  href="/admin"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-slate-300 text-xs font-semibold text-[#5B6470] hover:text-[#18232D] bg-white hover:bg-slate-50 transition"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#159447]" />
-                  <span>Admin Console</span>
-                </Link>
-
-                <button
-                  onClick={loadQueue}
-                  className="p-2 rounded-xl border border-slate-200 text-[#5B6470] hover:text-[#159447] hover:bg-emerald-50 transition"
-                  title="Refresh Queue"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#159447]' : ''}`} />
-                </button>
-              </div>
-
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs text-slate-500 font-medium">Specialist:</span>
+              <select
+                value={selectedOperatorId}
+                onChange={e => setSelectedOperatorId(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
+              >
+                {operators.map(op => (
+                  <option key={op.id} value={op.id}>
+                    {op.full_name} ({op.district})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={loadQueue}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                title="Refresh Queue"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#159447]' : ''}`} />
+              </button>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* ─── MAIN WORKSPACE ─── */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* ─── LEFT: APPLICATION QUEUE LIST (4 Cols) ─── */}
@@ -833,6 +806,8 @@ export default function OperatorPage() {
           </div>
         )}
 
+        {/* Footer */}
+        <Footer />
       </div>
     </>
   );

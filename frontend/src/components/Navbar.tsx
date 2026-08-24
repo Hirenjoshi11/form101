@@ -6,7 +6,10 @@ import { usePathname } from 'next/navigation';
 import { useLanguage } from '../i18n/LanguageContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ApiService } from '../lib/api';
-import { ShieldCheck, UserCheck, Menu, X, LogIn, ArrowRight } from 'lucide-react';
+import {
+  ShieldCheck, UserCheck, Menu, X, LogIn, Activity,
+  CreditCard, Layers, Sparkles, MessageSquare, Info
+} from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { t, language } = useLanguage();
@@ -19,133 +22,148 @@ export const Navbar: React.FC = () => {
   }, [pathname]);
 
   const navLinks = [
-    { href: '/', label: language === 'gu' ? 'HOME' : language === 'hi' ? 'HOME' : 'HOME' },
-    { href: '/forms', label: language === 'gu' ? 'FORMS' : language === 'hi' ? 'FORMS' : 'FORMS' },
-    { href: '/rates', label: language === 'gu' ? 'RATES' : language === 'hi' ? 'RATES' : 'RATES' },
-    { href: '/track', label: language === 'gu' ? 'TRACK' : language === 'hi' ? 'TRACK' : 'TRACK' },
-    { href: '/about', label: language === 'gu' ? 'ABOUT' : language === 'hi' ? 'ABOUT' : 'ABOUT' },
-    { href: '/feedback', label: language === 'gu' ? 'FEEDBACK' : language === 'hi' ? 'FEEDBACK' : 'FEEDBACK' },
-    { href: '/help', label: language === 'gu' ? 'HELP' : language === 'hi' ? 'HELP' : 'HELP' },
+    {
+      href: '/',
+      label: language === 'gu' ? 'મુખ્ય પૃષ્ઠ' : language === 'hi' ? 'ડેશબોર્ડ' : 'Dashboard',
+      icon: Layers
+    },
+    {
+      href: '/track',
+      label: language === 'gu' ? 'મારી અરજીઓ' : language === 'hi' ? 'आवेदन ट्रैक' : 'Track',
+      icon: Activity
+    },
+    {
+      href: '/rates',
+      label: language === 'gu' ? 'દર પત્રક' : language === 'hi' ? 'शुल्क दरें' : 'Rates',
+      icon: CreditCard
+    },
+    {
+      href: '/about',
+      label: language === 'gu' ? 'અમારા વિશે' : language === 'hi' ? 'हमारे बारे में' : 'About Us',
+      icon: Info
+    },
+    {
+      href: '/feedback',
+      label: language === 'gu' ? 'પ્રતિસાદ' : language === 'hi' ? 'प्रतिक्रिया' : 'Feedback',
+      icon: MessageSquare
+    },
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      {/* Top Gujarat Government / Digital India Header Strip */}
-      <div className="bg-[#18232D] text-slate-200 text-[11px] py-1.5 px-4 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-[#159447] animate-pulse"></span>
-            <span className="font-medium text-slate-300">
-              {language === 'gu'
-                ? 'ગુજરાત સરકાર નાગરિક સેવા સહાયતા પોર્ટલ • ડિજિટલ ગુજરાત આધારિત'
-                : language === 'hi'
-                ? 'गुजरात सरकार नागरिक सेवा सहायता पोर्टल • डिजिटल गुजरात अनुरूप'
-                : 'Government of Gujarat Citizen Services Assisted Portal • Digital Gujarat Assisted'}
-            </span>
-          </div>
-          <div className="hidden md:flex items-center gap-4 text-slate-300">
-            <Link href="/operator" className="hover:text-white transition-colors flex items-center gap-1">
-              <UserCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>{t.navOperator}</span>
-            </Link>
-            <span className="text-slate-600">|</span>
-            <Link href="/admin" className="hover:text-white transition-colors flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-              <span>{t.navAdmin}</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Nav (Poseidon Clean Minimalist Style) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16 sm:h-20">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="flex justify-between items-center h-16">
           
-          {/* Logo & Emblem */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white flex items-center justify-center shadow-xs border border-slate-200 p-1 group-hover:scale-105 transition-transform overflow-hidden">
-              <img
-                src="/icon.png"
-                alt="FormSeva"
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div>
-              <span className="font-black text-2xl sm:text-3xl text-[#18232D] tracking-tight leading-none">
-                Form<span className="text-[#159447]">Seva</span>
-              </span>
-              <p className="text-[9px] text-[#5B6470] font-bold tracking-widest uppercase hidden sm:block mt-0.5">
-                FILL · SUBMIT · DONE
-              </p>
-            </div>
-          </Link>
+          {/* Logo & App Name */}
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center border border-slate-200 p-1 shadow-xs group-hover:scale-105 transition-transform overflow-hidden">
+                <img
+                  src="/icon.png"
+                  alt="FormSeva"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-black text-xl text-[#18232D] tracking-tight leading-none">
+                  Form<span className="text-[#159447]">Seva</span>
+                </span>
+                <span className="text-[9px] font-bold text-emerald-700 tracking-wider uppercase">
+                  Gujarat App
+                </span>
+              </div>
+            </Link>
 
-          {/* Center Navigation Links (Uppercase, Spaced, Subtle Hover) */}
-          <nav className="hidden md:flex items-center gap-5 lg:gap-7">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`text-xs font-bold tracking-wider transition-colors ${
-                    isActive
-                      ? 'text-[#159447]'
-                      : 'text-[#18232D] hover:text-[#159447]'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+            {/* Desktop Navigation Tabs */}
+            <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/50">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-white text-[#159447] shadow-xs'
+                        : 'text-slate-600 hover:text-[#18232D] hover:bg-white/50'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{link.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
-          {/* Right Actions: Language Switcher & Single Login Pill Button */}
-          <div className="flex items-center gap-3">
+          {/* Right Action Tools */}
+          <div className="flex items-center gap-2.5">
+            {/* Quick Workbench Switcher */}
+            <div className="hidden lg:flex items-center gap-1.5 mr-1 border-r border-slate-200 pr-3">
+              <Link
+                href="/operator"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                  pathname === '/operator' ? 'bg-amber-50 text-amber-700 font-bold' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                title="Operator Workbench"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Operator</span>
+              </Link>
+              <Link
+                href="/admin"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                  pathname === '/admin' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                title="Admin Dashboard"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Admin</span>
+              </Link>
+            </div>
+
+            {/* Language Switcher */}
             <LanguageSwitcher />
 
-            {/* Single Clean Login / User Profile Pill Button */}
+            {/* User Profile / Login Pill */}
             {currentUser ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Link
                   href="/track"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold bg-[#EAF6EE] text-[#159447] border border-emerald-200 shadow-2xs hover:bg-emerald-100/60 transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-[#159447] border border-emerald-200 shadow-2xs hover:bg-emerald-100/70 transition-all"
                 >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span className="max-w-[120px] truncate">{currentUser.full_name || currentUser.email}</span>
+                  <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span className="max-w-[100px] truncate">{currentUser.full_name || currentUser.email}</span>
                 </Link>
                 <button
                   onClick={() => {
                     ApiService.logout();
                     setCurrentUser(null);
                   }}
-                  className="text-xs font-semibold text-[#5B6470] hover:text-red-600 px-2 py-1 transition"
+                  className="text-xs font-semibold text-slate-400 hover:text-red-600 px-2 py-1 transition"
                   title="Logout"
                 >
-                  Logout
+                  Exit
                 </button>
               </div>
             ) : (
               <Link
                 href="/login"
-                className={`inline-flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2 rounded-full text-xs sm:text-sm font-bold transition-all shadow-sm hover:shadow ${
-                  pathname === '/login'
-                    ? 'bg-[#12803c] text-white'
-                    : 'bg-[#159447] hover:bg-[#12803c] text-white'
-                }`}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-[#159447] hover:bg-[#12803c] text-white shadow-xs transition-all"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>{language === 'gu' ? 'લોગિન' : language === 'hi' ? 'लॉगिन' : 'Login'}</span>
               </Link>
             )}
 
-            {/* Mobile menu button */}
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-none"
+              className="md:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
               aria-label="Toggle Menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -153,47 +171,42 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-100 bg-white px-4 pt-3 pb-6 space-y-2 shadow-lg">
+        <div className="md:hidden border-t border-slate-100 bg-white px-4 py-3 space-y-1.5 shadow-lg">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
+            const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
+            const Icon = link.icon;
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block px-3 py-2.5 rounded-lg text-sm font-bold tracking-wide ${
-                  isActive ? 'bg-emerald-50 text-[#159447]' : 'text-[#18232D] hover:bg-slate-50'
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold ${
+                  isActive ? 'bg-emerald-50 text-[#159447]' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                {link.label}
+                <Icon className="w-4 h-4" />
+                <span>{link.label}</span>
               </Link>
             );
           })}
-          <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-            {currentUser ? (
-              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
-                <span className="text-xs font-bold text-[#18232D]">{currentUser.full_name || currentUser.email}</span>
-                <button
-                  onClick={() => {
-                    ApiService.logout();
-                    setCurrentUser(null);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="text-xs font-bold text-red-600"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-center py-2.5 rounded-full text-sm font-bold text-white bg-[#159447] flex items-center justify-center gap-1.5"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>{language === 'gu' ? 'લોગિન' : language === 'hi' ? 'लॉगिन' : 'Login'}</span>
-              </Link>
-            )}
+          
+          <div className="pt-2 mt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <Link
+              href="/operator"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-amber-50 rounded-xl text-xs font-bold text-amber-800"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Operator</span>
+            </Link>
+            <Link
+              href="/admin"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-50 rounded-xl text-xs font-bold text-blue-800"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin</span>
+            </Link>
           </div>
         </div>
       )}

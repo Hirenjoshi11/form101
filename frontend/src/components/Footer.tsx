@@ -100,8 +100,8 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/forms" className="hover:text-[#159447] transition-colors">
-                  {language === 'gu' ? 'બધા ફોર્મ્સ' : language === 'hi' ? 'सभी फॉर्म' : 'All Forms & Portal'}
+                <Link href="/#services-catalog" className="hover:text-[#159447] transition-colors">
+                  {language === 'gu' ? 'બધી સેવાઓ' : language === 'hi' ? 'सभी सेवाएं' : 'Services Catalog'}
                 </Link>
               </li>
               <li>
@@ -152,7 +152,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <Link href="/forms/caste_ncl_certificate" className="hover:text-[#159447] transition-colors flex items-center justify-between">
-                  <span>{language === 'gu' ? 'નોન-ક્રીમીલેયર દાખલો' : language === 'hi' ? 'नॉन-क्रीमीलेयर' : 'Non-Creamy Layer (NCL)'}</span>
+                  <span>{language === 'gu' ? 'નોન-ક્રીમીલેયર દાખલો' : language === 'hi' ? 'નૉન-ક્રીમીલેયર' : 'Non-Creamy Layer (NCL)'}</span>
                   <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">SEBC</span>
                 </Link>
               </li>
@@ -184,28 +184,28 @@ export const Footer: React.FC = () => {
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm text-[#5B6470]">
               <li>
-                <Link href="/help" className="hover:text-[#159447] transition-colors">
-                  {language === 'gu' ? 'હેલ્પ સેન્ટર & FAQ' : language === 'hi' ? 'हेल्प सेंटर' : 'Help Center & FAQ'}
+                <Link href="/about" className="hover:text-[#159447] transition-colors">
+                  {language === 'gu' ? 'અમારા વિશે (About Us)' : language === 'hi' ? 'हमारे बारे में' : 'About FormSeva'}
                 </Link>
               </li>
               <li>
                 <Link href="/feedback" className="hover:text-[#159447] transition-colors">
-                  {language === 'gu' ? 'પ્રતિસાદ આપો' : language === 'hi' ? 'प्रतिक्रिया दें' : 'Give Feedback'}
+                  {language === 'gu' ? 'પ્રતિસાદ આપો (Feedback)' : language === 'hi' ? 'प्रतिक्रिया दें' : 'Give Feedback'}
                 </Link>
               </li>
               <li>
-                <Link href="/help#dpdp" className="hover:text-[#159447] transition-colors">
-                  {language === 'gu' ? 'ડેટા સુરક્ષા નીતિ' : language === 'hi' ? 'डेटा सुरक्षा नीति' : 'DPDP Act 2023 Compliance'}
+                <Link href="/about#feedback" className="hover:text-[#159447] transition-colors">
+                  {language === 'gu' ? 'નાગરિક સૂચનો' : language === 'hi' ? 'नागरिक सुझाव' : 'Citizen Suggestions'}
                 </Link>
               </li>
               <li>
-                <Link href="/help#refund" className="hover:text-[#159447] transition-colors">
-                  {language === 'gu' ? 'રિફંડ અને રદ કરવાની નીતિ' : language === 'hi' ? 'रिफंड नीति' : 'Refund & Cancellation'}
+                <Link href="/rates" className="hover:text-[#159447] transition-colors">
+                  {language === 'gu' ? 'સરકારી દર અને નીતિ' : language === 'hi' ? 'शुल्क दर व नीति' : 'Rates & Terms'}
                 </Link>
               </li>
             </ul>
 
-            {/* Two Trust Verification Cards (Matching Reference Footer) */}
+            {/* Two Trust Verification Cards */}
             <div className="space-y-2.5 pt-2">
               {/* Card 1: DPDP / Certified */}
               <div className="bg-white rounded-xl p-3 border border-emerald-200/80 shadow-xs flex items-center gap-3">
@@ -236,16 +236,16 @@ export const Footer: React.FC = () => {
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-[#5B6470] gap-4">
           <div>
-            © 2026 FormSeva Gujarat. All rights reserved. Made with <Heart className="w-3.5 h-3.5 text-rose-500 inline fill-rose-500" /> for citizens of Gujarat.
+            © {new Date().getFullYear()} FormSeva Gujarat. All rights reserved. Made with <Heart className="w-3.5 h-3.5 text-rose-500 inline fill-rose-500" /> for citizens of Gujarat.
           </div>
 
           {/* Policy Links */}
           <div className="flex flex-wrap items-center gap-4 text-[#5B6470]">
-            <Link href="/help#privacy" className="hover:text-[#159447] transition-colors">Privacy Policy</Link>
+            <Link href="/about" className="hover:text-[#159447] transition-colors">Privacy Policy</Link>
             <span>•</span>
-            <Link href="/help#terms" className="hover:text-[#159447] transition-colors">Terms of Service</Link>
+            <Link href="/about" className="hover:text-[#159447] transition-colors">Terms of Service</Link>
             <span>•</span>
-            <Link href="/help#dpdp" className="hover:text-[#159447] transition-colors">DPDP Policy</Link>
+            <Link href="/about" className="hover:text-[#159447] transition-colors">DPDP Policy</Link>
             <span>•</span>
             <Link href="/rates" className="hover:text-[#159447] transition-colors">Refund Policy</Link>
           </div>

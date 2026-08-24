@@ -12,7 +12,7 @@ import { CertificateForm, OtpRequest } from '@/lib/types';
 import {
   ShieldCheck, Clock, IndianRupee, FileText,
   CheckCircle2, ChevronRight, Loader2, AlertTriangle,
-  XCircle, CheckCircle, Lightbulb, Sparkles, HelpCircle
+  Sparkles, ArrowLeft
 } from 'lucide-react';
 
 const STEPS = ['personal', 'address', 'specific', 'documents', 'review'] as const;
@@ -82,6 +82,30 @@ export default function FormDetailPage() {
     if (prevIdx >= 0) setStep(STEPS[prevIdx]);
   };
 
+  const handlePrefillDemo = () => {
+    setFieldValues({
+      full_name: 'Rameshchandra B. Patel',
+      father_name: 'Bhagwandas Patel',
+      gender: 'Male',
+      dob: '1985-06-15',
+      mobile: '9825044551',
+      aadhaar_number: '982145519821',
+      annual_income: '120000',
+      district: 'Ahmedabad',
+      taluka: 'Daskroi',
+      village: 'Bopal',
+      pincode: '380058',
+      ration_card_no: '0712398214',
+      purpose: 'Education Assistance / Scheme Benefit',
+      category: 'SEBC / OBC',
+      sub_caste: 'Patel / Prajapati',
+      religion: 'Hindu',
+      survey_number: '142/1',
+      khata_number: '89',
+      vehicle_class: 'LMV (Light Motor Vehicle)',
+    });
+  };
+
   const handleSubmit = async () => {
     if (!form) return;
     setSubmitting(true);
@@ -107,166 +131,136 @@ export default function FormDetailPage() {
   };
 
   if (loading) return (
-    <>
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 text-govt-600 animate-spin" />
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#159447] animate-spin" />
       </div>
-    </>
+    </div>
   );
 
   if (error || !form) return (
-    <>
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center px-4">
-        <AlertTriangle className="w-12 h-12 text-red-400" />
-        <h1 className="text-2xl font-bold text-slate-800">Form Not Found</h1>
-        <p className="text-slate-500">This certificate type may not be available yet.</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-4">
+        <AlertTriangle className="w-12 h-12 text-amber-500" />
+        <h1 className="text-xl font-bold text-slate-800">Form Not Found</h1>
+        <button
+          onClick={() => router.push('/forms')}
+          className="px-4 py-2 bg-[#159447] text-white text-xs font-bold rounded-xl"
+        >
+          Return to Services
+        </button>
       </div>
-    </>
+    </div>
   );
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <Head>
-        <title>{getTitle(form)} — Form_Seva Gujarat</title>
-        <meta name="description" content={`Apply for ${form.title_en} online through Form_Seva Gujarat.`} />
+        <title>{getTitle(form)} — FormSeva Gujarat</title>
+        <meta name="description" content={`Apply for ${form.title_en} online through FormSeva Gujarat.`} />
       </Head>
       <Navbar />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Breadcrumb + Title */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 font-medium">
-            <button onClick={() => router.push('/forms')} className="hover:text-govt-600 transition-colors">
-              {language === 'gu' ? 'ઉપલબ્ધ સેવાઓ' : language === 'hi' ? 'सेवाएं' : 'Certificates'}
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        
+        {/* Header Strip */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mb-1">
+              <button onClick={() => router.push('/forms')} className="hover:text-[#159447] transition">
+                {language === 'gu' ? 'સેવાઓ' : language === 'hi' ? 'सेवाएं' : 'Services'}
+              </button>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-slate-700">{getTitle(form)}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900">{getTitle(form)}</h1>
+            <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500 font-medium">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                {form.turnaround_days} {language === 'gu' ? 'દિવસ' : 'days'}
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <IndianRupee className="w-3.5 h-3.5 text-[#159447]" />
+                Fee: ₹{form.official_fee + form.service_fee}
+              </span>
+            </div>
+          </div>
+
+          {!done && (
+            <button
+              onClick={handlePrefillDemo}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs self-start sm:self-auto"
+              title="Auto-fill with sample citizen data for instant testing"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>{language === 'gu' ? 'ડેમો ડેટા ભરો' : language === 'hi' ? 'डेमो डेटा भरें' : 'Pre-fill Demo Data'}</span>
             </button>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-slate-600">{getTitle(form)}</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">{getTitle(form)}</h1>
-          <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-amber-500" />
-              {form.turnaround_days} {language === 'gu' ? 'કાર્ય-દિવસ' : language === 'hi' ? 'कार्य-दिन' : 'working days'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <IndianRupee className="w-4 h-4 text-govt-600" />
-              {t.totalFeeLabel}: ₹{form.official_fee + form.service_fee}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-govt-600" />
-              DPDP Compliant
-            </span>
-          </div>
+          )}
         </div>
 
         {done ? (
-          <div className="bg-govt-50 border border-govt-200 rounded-2xl p-10 text-center space-y-4 animate-slideUp">
-            <div className="w-16 h-16 rounded-full bg-govt-100 text-govt-700 flex items-center justify-center mx-auto">
+          <div className="bg-white border border-emerald-200 rounded-2xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-[#159447] flex items-center justify-center mx-auto shadow-xs">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h2 className="text-2xl font-extrabold text-govt-900">
-              {language === 'gu' ? 'અરજી સફળતાપૂર્વક જમા થઈ!' : language === 'hi' ? 'आवेदन सफलतापूर्वक जमा हुआ!' : 'Application Submitted!'}
+            <h2 className="text-2xl font-black text-slate-900">
+              {language === 'gu' ? 'અરજી સફળતાપૂર્વક સબમિટ થઈ!' : language === 'hi' ? 'आवेदन सफलतापूर्वक जमा हुआ!' : 'Application Submitted Successfully!'}
             </h2>
-            <p className="text-sm text-govt-700">
+            <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
               {language === 'gu'
-                ? 'ઓપરેટર ૧-૨ કલાકમાં ફોર્મ ભરવાનું શરૂ કરશે.'
+                ? 'ઓપરેટર સરકારી પોર્ટલ પર ફોર્મ ભરવાનું શરૂ કરશે. સ્ટેટસ તપાસવા માટે ટ્રેક પેજ જુઓ.'
                 : language === 'hi'
-                ? 'ऑपरेटर 1-2 घंटे में फाइलिंग शुरू करेंगे।'
-                : 'An operator will start filing within 1–2 hours.'}
+                ? 'ऑपरेटर सरकारी पोर्टल पर फाइलिंग शुरू करेंगे।'
+                : 'A dedicated operator is assigned to file your application on official Gujarat portals.'}
             </p>
             {submissionId && (
-              <p className="text-xs font-mono text-slate-500">Ref: {submissionId}</p>
+              <div className="inline-block bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg text-xs font-mono font-bold text-slate-700">
+                Application ID: {submissionId}
+              </div>
             )}
-            <button
-              onClick={() => router.push('/track')}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-govt-700 text-white font-bold hover:bg-govt-800 transition mt-2"
-            >
-              {t.trackApplication} <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="pt-2">
+              <button
+                onClick={() => router.push('/track')}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition"
+              >
+                <span>{t.trackApplication}</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
           <>
-            {/* ─── FACT VS MYTH BANNER (CITIZEN CLARITY) ─── */}
-            {(form.fact_gu || form.fact_en) && (
-              <div className="mb-8 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-sm">
-                <div className="bg-gradient-to-r from-slate-900 via-[#18232D] to-slate-900 px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                    <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {language === 'gu' ? 'મહત્વપૂર્ણ માહિતી : સાચી હકીકત vs ગેરમાન્યતા' : language === 'hi' ? 'महत्वपूर्ण सूचना : सच बनाम भ्रांति' : 'Important Citizen Notice: Fact vs Myth'}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-300 hidden sm:inline">
-                    {language === 'gu' ? 'સરકારી પરિપત્ર આધારિત' : 'Official Govt Resolution'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-                  {/* Common Myth */}
-                  <div className="p-4 sm:p-5 bg-rose-50/40">
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
-                        <XCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-rose-600 mb-1">
-                          {language === 'gu' ? 'સામાન્ય ગેરમાન્યતા (Myth)' : language === 'hi' ? 'सामान्य भ्रांति (Myth)' : 'Common Myth'}
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
-                          {language === 'gu' ? form.myth_gu : form.myth_en || form.myth_gu}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Official Fact */}
-                  <div className="p-4 sm:p-5 bg-emerald-50/40">
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                        <CheckCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 mb-1">
-                          {language === 'gu' ? 'અધિકૃત સાચી માહિતી (Official Fact)' : language === 'hi' ? 'आधिकारिक सच (Fact)' : 'Official Fact'}
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-900 font-bold leading-relaxed">
-                          {language === 'gu' ? form.fact_gu : form.fact_en || form.fact_gu}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Progress Steps */}
-            <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-1">
+            {/* Step Breadcrumb Indicator */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
               {STEPS.map((s, idx) => {
                 const isCurrent = s === step;
                 const isDone = idx < currentStepIdx;
                 return (
-                  <div key={s} className="flex items-center gap-0">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                      isCurrent ? 'bg-govt-700 text-white shadow-md' :
-                      isDone ? 'bg-govt-100 text-govt-700' :
-                      'bg-slate-100 text-slate-400'
-                    }`}>
-                      {isDone ? <CheckCircle2 className="w-3.5 h-3.5" /> : <span className="w-4 text-center">{idx + 1}</span>}
-                      {stepLabel[s]}
-                    </div>
-                    {idx < STEPS.length - 1 && (
-                      <div className={`h-px w-4 shrink-0 ${idx < currentStepIdx ? 'bg-govt-400' : 'bg-slate-200'}`} />
-                    )}
-                  </div>
+                  <button
+                    key={s}
+                    onClick={() => {
+                      if (idx <= currentStepIdx) setStep(s);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      isCurrent
+                        ? 'bg-[#18232D] text-white shadow-xs'
+                        : isDone
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-white border border-slate-200 text-slate-400'
+                    }`}
+                  >
+                    {isDone ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <span>{idx + 1}.</span>}
+                    <span>{stepLabel[s]}</span>
+                  </button>
                 );
               })}
             </div>
 
-            {/* Step Content */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm animate-fadeIn">
+            {/* Step Form Box */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-xs">
               {step !== 'documents' && step !== 'review' && (
                 <DynamicFormStep
                   fields={(form.fields || []).filter(f => f.step_section === step)}
@@ -285,77 +279,82 @@ export default function FormDetailPage() {
               )}
 
               {step === 'review' && (
-                <div className="space-y-4">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    {language === 'gu' ? 'ચકાસો અને જમા કરો' : language === 'hi' ? 'समीक्षा करें और जमा करें' : 'Review & Submit'}
+                <div className="space-y-5">
+                  <h2 className="text-base font-black text-slate-900 border-b border-slate-100 pb-3">
+                    {language === 'gu' ? 'વિગતો ચકાસો અને ચૂકવણી કરો' : language === 'hi' ? 'विवरण जांचें और भुगतान करें' : 'Review Details & Payment'}
                   </h2>
-                  {Object.keys(fieldValues).length > 0 && (
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
+
+                  {Object.keys(fieldValues).length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 rounded-xl p-4 text-xs">
                       {Object.entries(fieldValues).map(([k, v]) => (
-                        <div key={k} className="flex gap-2">
-                          <span className="font-medium text-slate-600 capitalize w-36 shrink-0">{k.replace(/_/g, ' ')}</span>
-                          <span className="text-slate-800">{String(v)}</span>
+                        <div key={k} className="flex flex-col">
+                          <span className="font-semibold text-slate-500 capitalize">{k.replace(/_/g, ' ')}</span>
+                          <span className="font-bold text-slate-900">{String(v)}</span>
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No field data entered.</p>
                   )}
+
                   {Object.keys(uploadedDocs).length > 0 && (
-                    <div className="bg-slate-50 rounded-xl p-4 text-sm">
-                      <p className="font-medium text-slate-700 mb-2">{t.requiredDocumentsTitle}</p>
+                    <div className="bg-slate-50 rounded-xl p-4 text-xs space-y-1.5">
+                      <span className="font-bold text-slate-700 block mb-1">Attached Documents:</span>
                       {Object.keys(uploadedDocs).map(k => (
-                        <div key={k} className="flex items-center gap-2 text-govt-700">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{k} — {uploadedDocs[k].name}</span>
+                        <div key={k} className="flex items-center gap-1.5 text-emerald-800">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{k} ({uploadedDocs[k].name})</span>
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="bg-govt-50 border border-govt-200 rounded-xl p-4 text-sm flex items-start gap-2">
-                    <ShieldCheck className="w-4 h-4 text-govt-600 mt-0.5 shrink-0" />
-                    <span className="text-govt-800">{t.dpdpNotice}</span>
-                  </div>
-                  <div className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+
+                  {/* Fee Breakdown & Pay Button */}
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                      <span className="text-sm text-slate-500">{t.totalFeeLabel}</span>
-                      <p className="text-2xl font-extrabold text-slate-900">₹{form.official_fee + form.service_fee}</p>
-                      <p className="text-xs text-slate-400">
-                        {t.officialFeeLabel}: ₹{form.official_fee} + {t.serviceFeeLabel}: ₹{form.service_fee}
-                      </p>
+                      <span className="text-xs text-emerald-800 font-medium block">{t.totalFeeLabel}</span>
+                      <div className="text-2xl font-black text-slate-900">₹{form.official_fee + form.service_fee}</div>
+                      <div className="text-[11px] text-slate-500">
+                        Govt Fee: ₹{form.official_fee} + Assisted Service: ₹{form.service_fee}
+                      </div>
                     </div>
+
                     <button
                       onClick={handleSubmit}
                       disabled={submitting}
-                      className="flex items-center gap-2 px-6 py-3 rounded-xl bg-govt-700 hover:bg-govt-800 text-white font-bold shadow-lg disabled:opacity-50 transition"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs disabled:opacity-50 transition"
                     >
                       {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {t.submitAndPay}
+                      <span>{t.submitAndPay} (₹{form.official_fee + form.service_fee})</span>
                     </button>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Navigation */}
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={handlePrev}
-                disabled={currentStepIdx === 0}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition"
-              >
-                {t.previousStep}
-              </button>
-              {step !== 'review' && (
+              {/* Wizard Navigation Bar */}
+              <div className="flex items-center justify-between border-t border-slate-100 pt-5 mt-6">
                 <button
-                  onClick={handleNext}
-                  className="px-5 py-2.5 rounded-xl bg-govt-700 hover:bg-govt-800 text-white text-sm font-bold shadow-sm transition"
+                  onClick={handlePrev}
+                  disabled={currentStepIdx === 0}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 transition"
                 >
-                  {t.nextStep}
+                  {t.previousStep}
                 </button>
-              )}
+
+                {step !== 'review' && (
+                  <button
+                    onClick={handleNext}
+                    className="inline-flex items-center gap-1 px-5 py-2 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs font-bold shadow-xs transition"
+                  >
+                    <span>{t.nextStep}</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </>
         )}
-      </div>
+      </main>
 
       {otpRequest && (
         <OtpModal
@@ -367,6 +366,6 @@ export default function FormDetailPage() {
       )}
 
       <Footer />
-    </>
+    </div>
   );
 }
