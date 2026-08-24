@@ -114,139 +114,69 @@ export default function HomePage() {
         <div className="absolute bottom-4 left-4 w-60 sm:w-72 h-60 sm:h-72 bg-emerald-50/60 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-8 items-center">
-            
-            {/* Left Column: Headline & Action */}
-            <div className="lg:col-span-7 space-y-4 sm:space-y-6 text-left">
-              {/* Brand Tagline Pill */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center p-1 shadow-2xs border border-slate-200 shrink-0">
-                  <img src="/icon.png" alt="FormSeva" className="w-full h-full object-contain" />
-                </div>
-                <div>
-                  <div className="font-black text-xl sm:text-2xl text-[#18232D] tracking-tight leading-none">
-                    Form<span className="text-[#159447]">Seva</span>
-                  </div>
-                  <div className="text-[9px] sm:text-[10px] font-bold text-[#5B6470] tracking-widest uppercase mt-0.5">
-                    — FILL · SUBMIT · DONE —
-                  </div>
-                </div>
+          <div className="max-w-3xl space-y-4 sm:space-y-6 text-left">
+            {/* Brand Tagline Pill */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center p-1 shadow-2xs border border-slate-200 shrink-0">
+                <img src="/icon.png" alt="FormSeva" className="w-full h-full object-contain" />
               </div>
-
-              {/* Main Headline */}
-              <h1 className="text-2xl sm:text-4xl lg:text-[44px] font-black text-[#18232D] leading-[1.2] tracking-tight">
-                {language === 'gu' ? (
-                  <>
-                    તમારા સરકારી ફોર્મ્સ,
-                    <span className="text-[#159447] block mt-1">હવે સરળ અને ઝંઝટ-મુક્ત</span>
-                  </>
-                ) : language === 'hi' ? (
-                  <>
-                    आपके सरकारी फॉर्म,
-                    <span className="text-[#159447] block mt-1">अब सरल और झंझट-मुक्त</span>
-                  </>
-                ) : (
-                  <>
-                    Your Government Forms,
-                    <span className="text-[#159447] block mt-1">Now Simple &amp; Hassle-Free</span>
-                  </>
-                )}
-              </h1>
-
-              {/* Subheading */}
-              <p className="text-xs sm:text-base text-[#5B6470] leading-relaxed max-w-xl">
-                {language === 'gu'
-                  ? 'અમે સરકારી પોર્ટલ પર તમારા ફોર્મ સચોટ, સુરક્ષિત અને ઝડપથી ભરવામાં સંપૂર્ણ સહાય કરીએ છીએ.'
-                  : language === 'hi'
-                  ? 'हम सरकारी पोर्टल पर आपके फॉर्म सटीक, सुरक्षित और आसानी से भरने में पूरी सहायता करते हैं।'
-                  : 'We help you fill, verify and submit your Government portal forms accurately and with ease.'}
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <a
-                  href="#services-catalog"
-                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg shadow-emerald-700/20 hover:scale-[1.02] transition-all"
-                >
-                  <Edit3 className="w-4 h-4" />
-                  <span>{language === 'gu' ? 'શરૂ કરો' : language === 'hi' ? 'શરૂ કરેં' : 'Get Started'}</span>
-                </a>
-
-                <a
-                  href="#services-catalog"
-                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white hover:bg-slate-50 text-[#18232D] border border-slate-200 font-bold text-xs sm:text-sm shadow-2xs hover:shadow transition-all"
-                >
-                  <PlayCircle className="w-4 h-4 text-[#159447]" />
-                  <span>{language === 'gu' ? 'સેવાઓ જુઓ' : language === 'hi' ? 'सेवाएं देखें' : 'View Services'}</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Right Column: Modern CSS Graphic Art */}
-            <div className="lg:col-span-5 flex justify-center lg:justify-end">
-              <div className="w-full max-w-sm sm:max-w-md bg-gradient-to-br from-emerald-500 via-[#159447] to-teal-700 rounded-3xl p-5 sm:p-6 text-white shadow-xl shadow-emerald-900/10 relative overflow-hidden">
-                {/* Background artistic pattern rings */}
-                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/10 blur-xl pointer-events-none" />
-                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-emerald-400/20 blur-lg pointer-events-none" />
-
-                {/* Inner Graphic Card */}
-                <div className="relative space-y-4">
-                  {/* Top Seal Badge */}
-                  <div className="flex items-center justify-between">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold border border-white/30">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
-                      <span>Gujarat Seva Certified</span>
-                    </div>
-                    <div className="w-8 h-8 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20">
-                      <Award className="w-4 h-4 text-amber-300" />
-                    </div>
-                  </div>
-
-                  {/* Certificate graphic card mockup */}
-                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 space-y-2.5">
-                    <div className="flex items-center justify-between text-xs font-semibold text-emerald-100">
-                      <span>Online Assisted Portal</span>
-                      <span className="font-mono text-[11px] bg-white/20 px-2 py-0.5 rounded">DPDP 2023</span>
-                    </div>
-                    
-                    <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="w-4/5 h-full bg-amber-400 rounded-full" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                      <div className="flex items-center gap-1.5 text-white font-medium">
-                        <Check className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Fast &amp; Accurate</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-white font-medium">
-                        <Check className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Direct OTP Sync</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-white font-medium">
-                        <Check className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Revenue &amp; Land</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-white font-medium">
-                        <Check className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>100% Secure</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Stats Strip */}
-                  <div className="flex items-center justify-between text-xs font-bold pt-1 text-emerald-100">
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      Digital Gujarat &amp; AnyRoR
-                    </span>
-                    <span className="bg-white text-[#159447] text-[10px] px-2.5 py-0.5 rounded-full font-black">
-                      ACTIVE
-                    </span>
-                  </div>
+              <div>
+                <div className="font-black text-xl sm:text-2xl text-[#18232D] tracking-tight leading-none">
+                  Form<span className="text-[#159447]">Seva</span>
+                </div>
+                <div className="text-[9px] sm:text-[10px] font-bold text-[#5B6470] tracking-widest uppercase mt-0.5">
+                  — FILL · SUBMIT · DONE —
                 </div>
               </div>
             </div>
 
+            {/* Main Headline */}
+            <h1 className="text-2xl sm:text-4xl lg:text-[44px] font-black text-[#18232D] leading-[1.2] tracking-tight">
+              {language === 'gu' ? (
+                <>
+                  તમારા સરકારી ફોર્મ્સ,
+                  <span className="text-[#159447] block mt-1">હવે સરળ અને ઝંઝટ-મુક્ત</span>
+                </>
+              ) : language === 'hi' ? (
+                <>
+                  आपके सरकारी फॉर्म,
+                  <span className="text-[#159447] block mt-1">अब सरल और झंझट-मुक्त</span>
+                </>
+              ) : (
+                <>
+                  Your Government Forms,
+                  <span className="text-[#159447] block mt-1">Now Simple &amp; Hassle-Free</span>
+                </>
+              )}
+            </h1>
+
+            {/* Subheading */}
+            <p className="text-xs sm:text-base text-[#5B6470] leading-relaxed max-w-xl">
+              {language === 'gu'
+                ? 'અમે સરકારી પોર્ટલ પર તમારા ફોર્મ સચોટ, સુરક્ષિત અને ઝડપથી ભરવામાં સંપૂર્ણ સહાય કરીએ છીએ.'
+                : language === 'hi'
+                ? 'हम सरकारी पोर्टल पर आपके फॉर्म सटीक, सुरक्षित और आसानी से भरने में पूरी सहायता करते हैं।'
+                : 'We help you fill, verify and submit your Government portal forms accurately and with ease.'}
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <a
+                href="#services-catalog"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg shadow-emerald-700/20 hover:scale-[1.02] transition-all"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>{language === 'gu' ? 'શરૂ કરો' : language === 'hi' ? 'શરૂ કરેં' : 'Get Started'}</span>
+              </a>
+
+              <a
+                href="#services-catalog"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white hover:bg-slate-50 text-[#18232D] border border-slate-200 font-bold text-xs sm:text-sm shadow-2xs hover:shadow transition-all"
+              >
+                <PlayCircle className="w-4 h-4 text-[#159447]" />
+                <span>{language === 'gu' ? 'સેવાઓ જુઓ' : language === 'hi' ? 'सेवाएं देखें' : 'View Services'}</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>
