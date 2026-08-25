@@ -53,6 +53,7 @@ import {
   ThumbsUp
 } from 'lucide-react';
 import { AdminBillingDashboard } from '@/components/AdminBillingDashboard';
+import { Footer } from '@/components/Footer';
 
 export default function AdminPage() {
   const { t, language } = useLanguage();
@@ -2598,6 +2599,7 @@ export default function AdminPage() {
 
           </main>
         </div>
+        <Footer />
       </div>
     </>
   );

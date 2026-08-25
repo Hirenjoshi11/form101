@@ -7,6 +7,7 @@ import { CertificateForm, Operator } from '@/lib/types';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { AdminBillingDashboard } from '@/components/AdminBillingDashboard';
+import { Footer } from '@/components/Footer';
 import {
   ShieldCheck,
   Receipt,
@@ -149,6 +150,8 @@ export default function AdminBillingPage() {
           operatorsList={operators}
         />
       </main>
+
+      <Footer />
     </div>
   );
 }
