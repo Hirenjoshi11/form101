@@ -115,21 +115,6 @@ export default function HomePage() {
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl space-y-4 sm:space-y-6 text-left">
-            {/* Brand Tagline Pill */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center p-1 shadow-2xs border border-slate-200 shrink-0">
-                <img src="/icon.png" alt="FormSeva" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <div className="font-black text-xl sm:text-2xl text-[#18232D] tracking-tight leading-none">
-                  Form<span className="text-[#159447]">Seva</span>
-                </div>
-                <div className="text-[9px] sm:text-[10px] font-bold text-[#5B6470] tracking-widest uppercase mt-0.5">
-                  — FILL · SUBMIT · DONE —
-                </div>
-              </div>
-            </div>
-
             {/* Main Headline */}
             <h1 className="text-2xl sm:text-4xl lg:text-[44px] font-black text-[#18232D] leading-[1.2] tracking-tight">
               {language === 'gu' ? (
