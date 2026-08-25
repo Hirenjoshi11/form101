@@ -100,13 +100,16 @@ export interface FormSubmission {
   form_title_en: string;
   assigned_operator_id?: string;
   assigned_operator_name?: string;
-  status: 'draft' | 'submitted' | 'in_review' | 'operator_filling' | 'awaiting_otp' | 'otp_received' | 'submitted_to_govt_portal' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'in_review' | 'operator_filling' | 'awaiting_otp' | 'otp_received' | 'submitted_to_govt_portal' | 'approved' | 'rejected' | 'correction_required' | 'resubmitted';
   govt_portal_application_id?: string;
   rejection_reason?: string;
   operator_notes?: string;
+  official_fee?: number;
+  service_fee?: number;
   total_fee: number;
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   submitted_at: string;
+  resubmitted_at?: string;
   operator_started_at?: string;
   completed_at?: string;
   certificate_url?: string;
@@ -125,6 +128,20 @@ export interface Operator {
   assigned_count: number;
   completed_count: number;
   is_active: boolean;
+  assigned_forms?: string[];
+  assigned_form_ids?: string[];
+}
+
+export interface OperatorFormAssignment {
+  id: string;
+  operator_id: string;
+  operator_name?: string;
+  form_id: string;
+  form_slug?: string;
+  form_title_en?: string;
+  form_title_gu?: string;
+  is_active: boolean;
+  assigned_at?: string;
 }
 
 export interface AdminStats {

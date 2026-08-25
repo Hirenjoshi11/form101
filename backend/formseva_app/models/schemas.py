@@ -159,9 +159,12 @@ class SubmissionResponse(BaseModel):
     govt_portal_application_id: Optional[str] = None
     rejection_reason: Optional[str] = None
     operator_notes: Optional[str] = None
+    official_fee: Optional[float] = 0.0
+    service_fee: Optional[float] = 0.0
     total_fee: float
     payment_status: str
     submitted_at: datetime
+    resubmitted_at: Optional[datetime] = None
     operator_started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     certificate_url: Optional[str] = None
@@ -169,6 +172,10 @@ class SubmissionResponse(BaseModel):
     field_values: Dict[str, Any] = {}
     documents: List[Dict[str, Any]] = []
     active_otp_request: Optional[Dict[str, Any]] = None
+
+class SubmissionResubmitRequest(BaseModel):
+    field_values: Dict[str, Any]
+    resubmission_note: Optional[str] = None
 
 # Payment Models
 class CreatePaymentIntentRequest(BaseModel):
@@ -191,12 +198,37 @@ class OperatorResponse(BaseModel):
     assigned_count: int = 0
     completed_count: int = 0
     is_active: bool = True
+    assigned_forms: Optional[List[str]] = [] # list of form slugs or IDs
 
 class OperatorCreate(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
     district: str = "Ahmedabad"
+    assigned_forms: Optional[List[str]] = []
+
+# Operator Form Assignments
+class OperatorFormAssignment(BaseModel):
+    id: str
+    operator_id: str
+    operator_name: Optional[str] = None
+    form_id: str
+    form_slug: Optional[str] = None
+    form_title_en: Optional[str] = None
+    form_title_gu: Optional[str] = None
+    is_active: bool = True
+    assigned_at: datetime
+
+class AssignOperatorFormRequest(BaseModel):
+    operator_id: str
+    form_id: str
+
+class BatchAssignOperatorFormsRequest(BaseModel):
+    operator_id: str
+    form_ids: List[str]
+
+class UpdateUserPhoneRequest(BaseModel):
+    phone: str
 
 # Notifications & Audit
 class NotificationResponse(BaseModel):
@@ -247,3 +279,4 @@ class FeedbackResponse(BaseModel):
 class FeedbackStatusUpdate(BaseModel):
     status: str # NEW, REVIEWED, RESOLVED, ARCHIVED
     admin_notes: Optional[str] = None
+

@@ -9,19 +9,41 @@ from formseva_app.api.submissions import _format_submission_response
 
 router = APIRouter(prefix="/operator", tags=["Operator Workbench"])
 
+@router.get("/my-forms", dependencies=[Depends(require_role(["operator", "admin"]))])
+def get_operator_assigned_forms(current_user: dict = Depends(require_role(["operator", "admin"]))):
+    """Returns the forms that the current operator is authorized/assigned to process."""
+    if current_user.get("role") == "admin":
+        return list(db.forms.values())
+    
+    operator_id = current_user["id"]
+    assigned_form_ids = {
+        a["form_id"] for a in db.operator_form_assignments.values()
+        if a["operator_id"] == operator_id and a.get("is_active", True)
+    }
+    return [f for f in db.forms.values() if f["id"] in assigned_form_ids]
+
 @router.get("/queue", response_model=List[SubmissionResponse], dependencies=[Depends(require_role(["operator", "admin"]))])
 def get_operator_queue(current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
     Returns submissions in the operator queue:
-    If operator, returns their assigned submissions and unassigned ones.
-    If admin, returns all submissions.
+    - If admin: returns all submissions.
+    - If operator: returns only submissions for forms assigned to this operator,
+      either assigned to them or unassigned in their assigned forms pool.
     """
     operator_id = current_user["id"]
     is_admin = current_user.get("role") == "admin"
     
     subs = list(db.submissions.values())
     if not is_admin:
-        subs = [s for s in subs if s.get("assigned_operator_id") == operator_id or s.get("assigned_operator_id") is None]
+        assigned_form_ids = {
+            a["form_id"] for a in db.operator_form_assignments.values()
+            if a["operator_id"] == operator_id and a.get("is_active", True)
+        }
+        subs = [
+            s for s in subs 
+            if (s.get("assigned_operator_id") == operator_id) or 
+               (s.get("assigned_operator_id") is None and s.get("form_id") in assigned_form_ids)
+        ]
     
     subs.sort(key=lambda s: s["submitted_at"], reverse=True)
     return [_format_submission_response(s) for s in subs]
@@ -78,7 +100,7 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
 
 @router.post("/submissions/{submission_id}/update-status", dependencies=[Depends(require_role(["operator", "admin"]))])
 def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate, current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """Update application filing status (e.g. submitted_to_govt_portal, approved, rejected)."""
+    """Update application filing status (e.g. submitted_to_govt_portal, approved, rejected, correction_required)."""
     sub = db.submissions.get(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
@@ -98,12 +120,13 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
         
     if payload.status == "submitted_to_govt_portal":
         sub["govt_submitted_at"] = datetime.now(timezone.utc)
-    elif payload.status in ("approved", "rejected"):
+    elif payload.status in ("approved", "rejected", "correction_required"):
         sub["completed_at"] = datetime.now(timezone.utc)
-        # Update operator completed count
-        op = db.operators.get(sub.get("assigned_operator_id"))
-        if op:
-            op["completed_count"] = op.get("completed_count", 0) + 1
+        # Update operator completed count if approved
+        if payload.status == "approved":
+            op = db.operators.get(sub.get("assigned_operator_id"))
+            if op:
+                op["completed_count"] = op.get("completed_count", 0) + 1
             
     sub["updated_at"] = datetime.now(timezone.utc)
     
@@ -126,12 +149,20 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
             "msg_en": "Your certificate has been issued. You can now download the certificate from My Filled Forms."
         },
         "rejected": {
-            "title_gu": "અરજીમાં ક્ષતિ / અસ્વીકાર",
-            "title_hi": "आवेदन अस्वीकृत / त्रुटि",
-            "title_en": "Application Query / Rejected",
-            "msg_gu": f"અરજીમાં નીચે મુજબની ક્ષતિ જણાયેલ છે: {payload.rejection_reason or 'દસ્તાવેજ અપૂર્ણ'}",
-            "msg_hi": f"आवेदन में त्रुटि: {payload.rejection_reason or 'दस्तावेज अपूर्ण'}",
-            "msg_en": f"Application query: {payload.rejection_reason or 'Incomplete document'}"
+            "title_gu": "અરજીમાં સુધારો જરૂરી છે (Correction Required)",
+            "title_hi": "आवेदन में संशोधन आवश्यक है",
+            "title_en": "Application Needs Correction",
+            "msg_gu": f"ઓપરેટર દ્વારા અરજીમાં સુધારો માંગવામાં આવ્યો છે: {payload.rejection_reason or 'વિગત/દસ્તાવેજ ચકાસો'}",
+            "msg_hi": f"आवेदन में सुधार आवश्यक: {payload.rejection_reason or 'दस्तावेज त्रुटि'}",
+            "msg_en": f"Correction requested by operator: {payload.rejection_reason or 'Please review information and documents.'}"
+        },
+        "correction_required": {
+            "title_gu": "અરજીમાં સુધારો જરૂરી છે",
+            "title_hi": "आवेदन में सुधार आवश्यक",
+            "title_en": "Application Needs Correction",
+            "msg_gu": f"ક્ષતિ: {payload.rejection_reason or 'અધૂરી માહિતી'}",
+            "msg_hi": f"त्रुटि: {payload.rejection_reason or 'अधूरी जानकारी'}",
+            "msg_en": f"Correction required: {payload.rejection_reason or 'Incomplete information'}"
         }
     }
     
@@ -161,7 +192,7 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
         "entity_type": "form_submissions",
         "entity_id": sub["id"],
         "old_state": {"status": old_status},
-        "new_state": {"status": payload.status, "operator_notes": payload.operator_notes},
+        "new_state": {"status": payload.status, "rejection_reason": payload.rejection_reason, "operator_notes": payload.operator_notes},
         "created_at": datetime.now(timezone.utc)
     })
     

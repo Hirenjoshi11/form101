@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS public.form_submissions (
             'awaiting_otp',
             'otp_received',
             'submitted_to_govt_portal',
+            'correction_required',
+            'resubmitted',
             'approved',
             'rejected'
         )
@@ -132,9 +134,13 @@ CREATE TABLE IF NOT EXISTS public.form_submissions (
     govt_portal_url VARCHAR(255),
     rejection_reason TEXT,
     operator_notes TEXT,
+    user_phone VARCHAR(20),
+    official_fee NUMERIC(10, 2) DEFAULT 0.00,
+    service_fee NUMERIC(10, 2) DEFAULT 0.00,
     total_fee NUMERIC(10, 2) NOT NULL,
     payment_status VARCHAR(50) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
+    resubmitted_at TIMESTAMPTZ,
     operator_started_at TIMESTAMPTZ,
     govt_submitted_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
@@ -360,6 +366,28 @@ CREATE POLICY "Notifications user self" ON public.notifications
         user_id IN (SELECT id FROM public.users WHERE auth_id = auth.uid())
         OR public.is_admin()
     );
+
+-- -----------------------------------------------------------------------------
+-- 13. OPERATOR FORM ASSIGNMENTS (Per-Form Operator Eligibility Matrix)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.operator_form_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    operator_id UUID NOT NULL REFERENCES public.operators(id) ON DELETE CASCADE,
+    form_id UUID NOT NULL REFERENCES public.forms(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    assigned_by UUID REFERENCES public.admins(id) ON DELETE SET NULL,
+    CONSTRAINT uq_op_form UNIQUE(operator_id, form_id)
+);
+
+CREATE POLICY "Operator form assignments viewable by all staff" ON public.operator_form_assignments
+    FOR SELECT USING (public.is_admin() OR public.is_operator());
+
+CREATE POLICY "Operator form assignments manageable by admin" ON public.operator_form_assignments
+    FOR ALL USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_op_form_op ON public.operator_form_assignments(operator_id);
+CREATE INDEX IF NOT EXISTS idx_op_form_form ON public.operator_form_assignments(form_id);
 
 CREATE INDEX IF NOT EXISTS idx_submissions_user ON public.form_submissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_operator ON public.form_submissions(assigned_operator_id);

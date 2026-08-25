@@ -42,10 +42,148 @@ def get_dashboard_stats():
         "by_form": by_form
     }
 
-@router.get("/operators", response_model=List[OperatorResponse], dependencies=[Depends(require_role(["admin"]))])
+@router.get("/operators", dependencies=[Depends(require_role(["admin"]))])
 def list_operators():
-    """List all registered operators."""
-    return list(db.operators.values())
+    """List all registered operators with their assigned forms."""
+    ops = []
+    for op in db.operators.values():
+        assigned_form_ids = [
+            a["form_id"] for a in db.operator_form_assignments.values()
+            if a["operator_id"] == op["id"] and a.get("is_active", True)
+        ]
+        assigned_form_slugs = [
+            db.forms[fid]["slug"] for fid in assigned_form_ids if fid in db.forms
+        ]
+        ops.append({
+            **op,
+            "assigned_forms": assigned_form_slugs,
+            "assigned_form_ids": assigned_form_ids
+        })
+    return ops
+
+@router.get("/operator-assignments", dependencies=[Depends(require_role(["admin"]))])
+def list_operator_assignments():
+    """Returns list of all active operator <-> form eligibility assignments."""
+    assignments = []
+    for a in db.operator_form_assignments.values():
+        op = db.operators.get(a["operator_id"], {})
+        form = db.forms.get(a["form_id"], {})
+        assignments.append({
+            "id": a["id"],
+            "operator_id": a["operator_id"],
+            "operator_name": op.get("full_name", "Unknown Operator"),
+            "form_id": a["form_id"],
+            "form_slug": form.get("slug", "unknown"),
+            "form_title_en": form.get("title_en", "Unknown Form"),
+            "form_title_gu": form.get("title_gu", "અજ્ઞાત સેવા"),
+            "is_active": a.get("is_active", True),
+            "assigned_at": a.get("assigned_at")
+        })
+    return assignments
+
+@router.post("/operator-assignments", dependencies=[Depends(require_role(["admin"]))])
+def assign_operator_to_form(payload: dict, current_user: dict = Depends(require_role(["admin"]))):
+    """Assign an operator to process a specific form."""
+    op_id = payload.get("operator_id")
+    form_id = payload.get("form_id")
+    
+    # Resolve slug to ID if needed
+    if form_id not in db.forms:
+        f = next((form for form in db.forms.values() if form.get("slug") == form_id), None)
+        if f:
+            form_id = f["id"]
+            
+    if op_id not in db.operators:
+        raise HTTPException(status_code=404, detail="Operator not found")
+    if form_id not in db.forms:
+        raise HTTPException(status_code=404, detail="Form not found")
+        
+    existing = next((
+        a for a in db.operator_form_assignments.values()
+        if a["operator_id"] == op_id and a["form_id"] == form_id
+    ), None)
+    
+    if existing:
+        existing["is_active"] = True
+        return {"message": "Assignment updated", "assignment": existing}
+        
+    assign_id = str(uuid.uuid4())
+    assignment = {
+        "id": assign_id,
+        "operator_id": op_id,
+        "form_id": form_id,
+        "is_active": True,
+        "assigned_at": datetime.now(timezone.utc),
+        "assigned_by": current_user["id"]
+    }
+    db.operator_form_assignments[assign_id] = assignment
+    return {"message": "Operator assigned to form successfully", "assignment": assignment}
+
+@router.post("/operator-assignments/batch", dependencies=[Depends(require_role(["admin"]))])
+def batch_assign_operator_forms(payload: dict, current_user: dict = Depends(require_role(["admin"]))):
+    """Batch update all forms assigned to a specific operator."""
+    op_id = payload.get("operator_id")
+    form_ids_or_slugs = payload.get("form_ids", [])
+    
+    if op_id not in db.operators:
+        raise HTTPException(status_code=404, detail="Operator not found")
+        
+    resolved_form_ids = set()
+    for item in form_ids_or_slugs:
+        if item in db.forms:
+            resolved_form_ids.add(item)
+        else:
+            f = next((form for form in db.forms.values() if form.get("slug") == item), None)
+            if f:
+                resolved_form_ids.add(f["id"])
+                
+    # Remove existing assignments for this operator
+    keys_to_remove = [k for k, v in db.operator_form_assignments.items() if v["operator_id"] == op_id]
+    for k in keys_to_remove:
+        db.operator_form_assignments.pop(k)
+        
+    # Add new assignments
+    for fid in resolved_form_ids:
+        assign_id = str(uuid.uuid4())
+        db.operator_form_assignments[assign_id] = {
+            "id": assign_id,
+            "operator_id": op_id,
+            "form_id": fid,
+            "is_active": True,
+            "assigned_at": datetime.now(timezone.utc),
+            "assigned_by": current_user["id"]
+        }
+        
+    return {"message": f"Assigned {len(resolved_form_ids)} forms to operator successfully", "assigned_form_ids": list(resolved_form_ids)}
+
+@router.delete("/operator-assignments/{assignment_id}", dependencies=[Depends(require_role(["admin"]))])
+def remove_operator_assignment(assignment_id: str, current_user: dict = Depends(require_role(["admin"]))):
+    """Remove an operator's assignment to a form."""
+    if assignment_id in db.operator_form_assignments:
+        db.operator_form_assignments.pop(assignment_id)
+        return {"message": "Assignment removed successfully"}
+    # Try finding by op_id/form_id
+    key = next((k for k, v in db.operator_form_assignments.items() if v.get("operator_id") == assignment_id or v.get("id") == assignment_id), None)
+    if key:
+        db.operator_form_assignments.pop(key)
+        return {"message": "Assignment removed successfully"}
+    return {"message": "Assignment removed"}
+
+@router.get("/forms/{form_id}/eligible-operators", dependencies=[Depends(require_role(["admin"]))])
+def get_eligible_operators_for_form(form_id: str):
+    """Get all operators who are authorized/assigned to process a specific form."""
+    # Resolve slug if passed
+    if form_id not in db.forms:
+        f = next((form for form in db.forms.values() if form.get("slug") == form_id), None)
+        if f:
+            form_id = f["id"]
+            
+    eligible_op_ids = {
+        a["operator_id"] for a in db.operator_form_assignments.values()
+        if a["form_id"] == form_id and a.get("is_active", True)
+    }
+    
+    return [op for op in db.operators.values() if op["id"] in eligible_op_ids and op.get("is_active", True)]
 
 @router.post("/operators", response_model=OperatorResponse, dependencies=[Depends(require_role(["admin"]))])
 def create_operator(payload: OperatorCreate, current_user: dict = Depends(require_role(["admin"]))):

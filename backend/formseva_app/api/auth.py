@@ -84,6 +84,72 @@ def login_or_register(payload: AuthRequest):
         token = create_access_token(token_payload)
         return AuthResponse(access_token=token, user=token_payload)
 
+@router.post("/google", response_model=AuthResponse)
+def google_auth_login(payload: dict):
+    """
+    Direct Google OAuth login callback/token handler.
+    Authenticates user seamlessly without manual password entry.
+    """
+    email = payload.get("email", "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required for Google authentication")
+        
+    full_name = payload.get("full_name") or email.split("@")[0].replace(".", " ").title()
+    avatar_url = payload.get("avatar_url")
+    phone = payload.get("phone", "")
+    
+    user = next((u for u in db.users.values() if u["email"].lower() == email), None)
+    if not user:
+        user_id = str(uuid.uuid4())
+        user = {
+            "id": user_id,
+            "full_name": full_name,
+            "email": email,
+            "phone": phone,
+            "avatar_url": avatar_url,
+            "auth_provider": "google",
+            "preferred_language": "gu",
+            "role": "citizen",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        db.users[user_id] = user
+    else:
+        if phone and not user.get("phone"):
+            user["phone"] = phone
+            user["updated_at"] = datetime.now(timezone.utc)
+            
+    token_payload = {
+        "sub": user["id"],
+        "id": user["id"],
+        "email": user["email"],
+        "full_name": user["full_name"],
+        "phone": user.get("phone", ""),
+        "role": "citizen",
+        "auth_provider": "google",
+        "preferred_language": user.get("preferred_language", "gu")
+    }
+    token = create_access_token(token_payload)
+    return AuthResponse(access_token=token, user=token_payload)
+
+@router.put("/phone")
+def update_citizen_phone(payload: dict, current_user: dict = Depends(get_current_user)):
+    """Update citizen mobile number."""
+    phone = payload.get("phone", "").strip()
+    if not phone or len(phone) < 10:
+        raise HTTPException(status_code=400, detail="Valid 10-digit mobile number is required")
+        
+    user = db.users.get(current_user["id"])
+    if user:
+        user["phone"] = phone
+        user["updated_at"] = datetime.now(timezone.utc)
+    return {"message": "Phone number updated successfully", "phone": phone}
+
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)):
+    # Always return fresh user profile with latest phone
+    if current_user.get("role") == "citizen":
+        u = db.users.get(current_user["id"])
+        if u:
+            return {**current_user, "phone": u.get("phone", "")}
     return current_user
