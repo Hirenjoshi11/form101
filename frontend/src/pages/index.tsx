@@ -10,7 +10,7 @@ import { FormIcon } from '@/components/FormIcon';
 import {
   Search, Clock, ChevronRight, Activity, ArrowRight,
   Sparkles, CheckCircle2, ShieldCheck, FileText,
-  Users, Edit3, PlayCircle, Award, Check
+  Users, Edit3, PlayCircle, Award, Check, Heart
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -328,6 +328,66 @@ export default function HomePage() {
         )}
 
       </main>
+
+      {/* ─── OUR SOCIAL COMMITMENT — 7% FOR EDUCATION ─── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-14 w-full">
+        <div className="bg-gradient-to-br from-[#EAF6EE] via-[#F4F9F5] to-[#E5F3EA] rounded-3xl p-6 sm:p-10 border-2 border-emerald-300 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2.5 max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#159447] text-white text-xs font-black uppercase tracking-wider shadow-2xs">
+                <Heart className="w-3.5 h-3.5 fill-white" />
+                <span>
+                  {language === 'gu'
+                    ? 'અમારો સામાજિક સંકલ્પ'
+                    : language === 'hi'
+                    ? 'हमारा सामाजिक संकल्प'
+                    : 'Our Social Commitment'}
+                </span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-[#18232D] tracking-tight">
+                {language === 'gu'
+                  ? 'શિક્ષણ માટે ૭%'
+                  : language === 'hi'
+                  ? 'शिक्षा के लिए 7%'
+                  : '7% for Education'}
+              </h2>
+
+              <p className="text-base sm:text-lg font-black text-[#159447]">
+                {language === 'gu'
+                  ? 'અમારા નફાનો ૭% બાળકોના શિક્ષણ અને ઉજ્જવળ ભવિષ્ય માટે.'
+                  : language === 'hi'
+                  ? 'हमारे मुनाफे का 7% बच्चों की शिक्षा और उज्ज्वल भविष्य के लिए।'
+                  : '7% of our profit for children’s education and a brighter future.'}
+              </p>
+
+              <p className="text-xs sm:text-sm text-[#5B6470] leading-relaxed">
+                {language === 'gu'
+                  ? 'અમે અમારા નફાના ૭% નો ઉપયોગ બાળકોના શિક્ષણને ટેકો આપવા અને જરૂરિયાતમંદ બાળકોને ઉપયોગી શિક્ષણ સામગ્રી અને શૈક્ષણિક સંસાધનો પહોંચાડવા માટે કટિબદ્ધ છીએ.'
+                  : language === 'hi'
+                  ? 'हम अपने मुनाफे का 7% बच्चों की शिक्षा का समर्थन करने और जरूरतमंद बच्चों को उपयोगी शिक्षण सामग्री और शैक्षणिक संसाधन उपलब्ध कराने के लिए उपयोग करने के लिए प्रतिबद्ध हैं।'
+                  : "We are committed to using 7% of our profit to support children's education and provide useful learning materials and educational resources to children who need them."}
+              </p>
+            </div>
+
+            <div className="shrink-0">
+              <Link
+                href="/about"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow transition-all group"
+              >
+                <span>
+                  {language === 'gu'
+                    ? 'વધુ જાણો'
+                    : language === 'hi'
+                    ? 'और जानें'
+                    : 'Learn More'}
+                </span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ─── SITE FOOTER ─── */}
       <Footer />
