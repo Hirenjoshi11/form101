@@ -231,6 +231,21 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleOperatorFormAssignment = async (operatorId: string, formId: string, isAssigned: boolean) => {
+    try {
+      if (isAssigned) {
+        await ApiService.removeOperatorAssignment(operatorId, formId);
+      } else {
+        await ApiService.assignOperatorForm(operatorId, formId);
+      }
+      showToast('Operator service assignments updated');
+      const ops = await ApiService.getOperators();
+      setOperators(ops);
+    } catch (e) {
+      showToast('Failed to update operator assignment');
+    }
+  };
+
   // ─── FORM & RATES CRUD HANDLERS ───
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1158,18 +1173,18 @@ export default function AdminPage() {
           )}
 
           {/* ═════════════════════════════════════════════════════════════════════ */}
-          {/* TAB 3: OPERATOR MANAGEMENT (FULL CRUD)                                */}
+          {/* TAB 3: OPERATOR MANAGEMENT (FULL CRUD & SERVICE ASSIGNMENTS)           */}
           {/* ═════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'operators' && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-8 animate-fade-in">
               
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-black text-[#18232D] tracking-tight">
-                    Certified Operator Management (Full CRUD)
+                    Certified Operator Management & Service Matrix
                   </h1>
                   <p className="text-xs sm:text-sm text-[#5B6470] mt-1">
-                    Create, edit full profiles, update district assignments, and manage operator credentials.
+                    Manage operator credentials, active status, and assign specific government forms to certified operators.
                   </p>
                 </div>
 
@@ -1182,81 +1197,163 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Operators Grid Cards with Full Edit/Delete options */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {operators.map(op => (
-                  <div
-                    key={op.id}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#159447] font-black text-base flex items-center justify-center border border-emerald-100">
-                          {op.full_name.slice(0, 2).toUpperCase()}
-                        </div>
-                        
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => setEditingOperator(op)}
-                            className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-400 text-slate-700 bg-white hover:bg-slate-50 transition"
-                            title="Edit Operator Profile"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteOpConfirm(op)}
-                            className="p-1.5 rounded-lg border border-red-200 hover:border-red-400 text-red-600 bg-red-50/50 hover:bg-red-50 transition"
-                            title="Delete Operator"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3 className="font-extrabold text-base text-[#18232D] mt-3">{op.full_name}</h3>
-                      <p className="text-xs text-[#5B6470] flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#159447]" /> {op.district} District
-                      </p>
-
-                      <div className="space-y-1 mt-3 pt-3 border-t border-slate-100 text-xs text-[#5B6470]">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{op.email}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <PhoneCall className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{op.phone || '+91 98250 11223'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-100 space-y-2.5">
-                      <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                        <div className="bg-slate-50 p-2 rounded-xl">
-                          <div className="font-black text-[#18232D] text-base">{op.assigned_count}</div>
-                          <div className="text-[10px] text-[#5B6470]">In Queue</div>
-                        </div>
-                        <div className="bg-emerald-50/70 p-2 rounded-xl">
-                          <div className="font-black text-[#159447] text-base">{op.completed_count}</div>
-                          <div className="text-[10px] text-emerald-800">Completed</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          onClick={() => handleToggleOperator(op.id)}
-                          className={`w-full py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            op.is_active
-                              ? 'bg-emerald-50 text-[#159447] border border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                              : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-[#159447]'
-                          }`}
-                        >
-                          {op.is_active ? '● Active (Click to Disable)' : '○ Offline (Click to Enable)'}
-                        </button>
-                      </div>
-                    </div>
+              {/* ─── OPERATOR ↔ FORM ASSIGNMENT MATRIX TABLE ─── */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="font-extrabold text-base text-[#18232D] flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-[#159447]" />
+                      <span>Operator ↔ Form Authorization Matrix</span>
+                    </h2>
+                    <p className="text-xs text-[#5B6470] mt-0.5">
+                      Check/uncheck to authorize which government services each operator is eligible to process.
+                    </p>
                   </div>
-                ))}
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    Enforced at Backend Queue Level
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="py-3 px-4 font-bold text-slate-700">Operator</th>
+                        <th className="py-3 px-4 font-bold text-slate-700">District</th>
+                        {formsList.map(f => (
+                          <th key={f.id} className="py-3 px-3 font-bold text-slate-700 text-center min-w-[120px]">
+                            <div className="font-bold truncate" title={f.title_en}>{f.title_en}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">₹{f.official_fee + f.service_fee}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {operators.map(op => (
+                        <tr key={op.id} className="hover:bg-slate-50/60 transition">
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{op.full_name}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">{op.email}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                              {op.district}
+                            </span>
+                          </td>
+                          {formsList.map(f => {
+                            const isAssigned = (op.assigned_form_ids && op.assigned_form_ids.includes(f.id)) ||
+                              (op.assigned_forms && op.assigned_forms.includes(f.slug));
+                            return (
+                              <td key={f.id} className="py-3.5 px-3 text-center">
+                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(isAssigned)}
+                                    onChange={() => handleToggleOperatorFormAssignment(op.id, f.id, Boolean(isAssigned))}
+                                    className="w-4 h-4 text-[#159447] rounded border-slate-300 focus:ring-[#159447] cursor-pointer"
+                                  />
+                                </label>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Operators Grid Cards with Full Edit/Delete options */}
+              <div className="space-y-3">
+                <h2 className="font-extrabold text-base text-[#18232D]">All Registered Operators</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {operators.map(op => (
+                    <div
+                      key={op.id}
+                      className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#159447] font-black text-base flex items-center justify-center border border-emerald-100">
+                            {op.full_name.slice(0, 2).toUpperCase()}
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setEditingOperator(op)}
+                              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-400 text-slate-700 bg-white hover:bg-slate-50 transition"
+                              title="Edit Operator Profile"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteOpConfirm(op)}
+                              className="p-1.5 rounded-lg border border-red-200 hover:border-red-400 text-red-600 bg-red-50/50 hover:bg-red-50 transition"
+                              title="Delete Operator"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <h3 className="font-extrabold text-base text-[#18232D] mt-3">{op.full_name}</h3>
+                        <p className="text-xs text-[#5B6470] flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#159447]" /> {op.district} District
+                        </p>
+
+                        <div className="space-y-1 mt-3 pt-3 border-t border-slate-100 text-xs text-[#5B6470]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{op.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <PhoneCall className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{op.phone || '+91 98250 11223'}</span>
+                          </div>
+                        </div>
+
+                        {op.assigned_forms && op.assigned_forms.length > 0 && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Assigned Services:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {op.assigned_forms.map(s => (
+                                <span key={s} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] rounded font-bold">
+                                  {s.replace(/_/g, ' ')}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                          <div className="bg-slate-50 p-2 rounded-xl">
+                            <div className="font-black text-[#18232D] text-base">{op.assigned_count}</div>
+                            <div className="text-[10px] text-[#5B6470]">In Queue</div>
+                          </div>
+                          <div className="bg-emerald-50/70 p-2 rounded-xl">
+                            <div className="font-black text-[#159447] text-base">{op.completed_count}</div>
+                            <div className="text-[10px] text-emerald-800">Completed</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <button
+                            onClick={() => handleToggleOperator(op.id)}
+                            className={`w-full py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              op.is_active
+                                ? 'bg-emerald-50 text-[#159447] border border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                                : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-[#159447]'
+                            }`}
+                          >
+                            {op.is_active ? '● Active (Click to Disable)' : '○ Offline (Click to Enable)'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
             </div>
@@ -2493,19 +2590,34 @@ export default function AdminPage() {
                   Select Active Operator:
                 </p>
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {operators.filter(o => o.is_active).map(op => (
-                    <button
-                      key={op.id}
-                      onClick={() => handleAssignOperator(showAssignModal.id, op.id)}
-                      className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-[#159447] hover:bg-emerald-50/50 text-left transition"
-                    >
-                      <div>
-                        <div className="font-bold text-xs sm:text-sm text-[#18232D]">{op.full_name}</div>
-                        <div className="text-[11px] text-[#5B6470]">📍 {op.district} • {op.assigned_count} active</div>
-                      </div>
-                      <span className="text-xs font-bold text-[#159447]">Assign →</span>
-                    </button>
-                  ))}
+                  {operators.filter(o => o.is_active).map(op => {
+                    const isEligible = (op.assigned_form_ids && op.assigned_form_ids.includes(showAssignModal.form_id)) ||
+                      (op.assigned_forms && op.assigned_forms.includes(showAssignModal.form_slug));
+                    return (
+                      <button
+                        key={op.id}
+                        onClick={() => handleAssignOperator(showAssignModal.id, op.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition ${
+                          isEligible
+                            ? 'border-emerald-200 bg-emerald-50/40 hover:border-[#159447] hover:bg-emerald-50'
+                            : 'border-slate-200 hover:border-slate-300 opacity-75'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold text-xs sm:text-sm text-[#18232D] flex items-center gap-1.5 flex-wrap">
+                            <span>{op.full_name}</span>
+                            {isEligible && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                                ✓ Certified for this form
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-[#5B6470]">📍 {op.district} • {op.assigned_count} active in queue</div>
+                        </div>
+                        <span className="text-xs font-bold text-[#159447]">Assign →</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

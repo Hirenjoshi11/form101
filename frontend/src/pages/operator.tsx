@@ -5,9 +5,8 @@ import { useRouter } from 'next/router';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ApiService, mockOperators } from '@/lib/api';
-import { FormSubmission, Operator } from '@/lib/types';
+import { FormSubmission, Operator, CertificateForm } from '@/lib/types';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { FormIcon } from '@/components/FormIcon';
 import {
   ShieldCheck,
@@ -30,6 +29,7 @@ import {
   FileCheck2,
   Lock,
   PhoneCall,
+  Phone,
   Mail,
   Building2,
   AlertTriangle,
@@ -38,8 +38,20 @@ import {
   ClipboardList,
   Upload,
   Download,
-  Trash2
+  Trash2,
+  Filter,
+  Layers
 } from 'lucide-react';
+
+const STANDARD_REJECTION_REASONS = [
+  "Name mismatch: Applicant name in application does not match uploaded Aadhaar/School LC.",
+  "Document blur / unreadable: Uploaded certificate/document photo is blurred or illegible.",
+  "Missing required document: Please upload clear copy of Father School LC / 3-Year Income Proof.",
+  "Land record mismatch: Survey number or Block number does not match AnyRoR revenue records for this village.",
+  "RTO Sarathi error: Mobile number is not linked to Aadhaar for contactless online Learner Licence test.",
+  "Income ceiling exceeded: Family gross annual income exceeds the scheme eligibility limit.",
+  "Other / Custom query (Please specify below)"
+];
 
 export default function OperatorPage() {
   const { t, language } = useLanguage();
@@ -48,9 +60,11 @@ export default function OperatorPage() {
   // State
   const [operators, setOperators] = useState<Operator[]>(mockOperators);
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>(mockOperators[0].id);
+  const [assignedForms, setAssignedForms] = useState<CertificateForm[]>([]);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'all' | 'submitted' | 'resubmitted' | 'operator_filling' | 'awaiting_otp' | 'approved' | 'rejected'>('all');
 
   // Copy tracking state
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -61,10 +75,14 @@ export default function OperatorPage() {
   const [otpPurposeGu, setOtpPurposeGu] = useState('ડિજિટલ ગુજરાત પોર્ટલ લોગિન માટે');
   const [otpSending, setOtpSending] = useState(false);
 
+  // Rejection Modal
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [selectedRejectionTemplate, setSelectedRejectionTemplate] = useState(STANDARD_REJECTION_REASONS[0]);
+  const [customRejectionExplanation, setCustomRejectionExplanation] = useState('');
+
   // Status update states
   const [govtAppIdInput, setGovtAppIdInput] = useState('');
   const [operatorNotesInput, setOperatorNotesInput] = useState('');
-  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [certificatePdfUrl, setCertificatePdfUrl] = useState('');
   const [certificatePdfName, setCertificatePdfName] = useState('');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -112,11 +130,13 @@ export default function OperatorPage() {
 
   const loadQueue = async () => {
     try {
-      const [queue, ops] = await Promise.all([
+      const [queue, ops, forms] = await Promise.all([
         ApiService.getOperatorQueue(),
-        ApiService.getOperators()
+        ApiService.getOperators(),
+        ApiService.getOperatorAssignedForms()
       ]);
       setSubmissions(queue);
+      setAssignedForms(forms);
       if (queue.length > 0 && !selectedSubmission) {
         setSelectedSubmission(queue[0]);
       }
@@ -146,54 +166,25 @@ export default function OperatorPage() {
       window.removeEventListener('formseva_data_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, []);
+  }, [selectedOperatorId]);
 
-  // Update selected submission local field values when selection changes
-  useEffect(() => {
-    if (selectedSubmission) {
-      setGovtAppIdInput(selectedSubmission.govt_portal_application_id || '');
-      setOperatorNotesInput(selectedSubmission.operator_notes || '');
-      setRejectionReasonInput(selectedSubmission.rejection_reason || '');
-      setCertificatePdfUrl(selectedSubmission.certificate_url || '');
-      setCertificatePdfName(selectedSubmission.certificate_file_name || '');
-    }
-  }, [selectedSubmission?.id]);
+  const currentOperator = operators.find(o => o.id === selectedOperatorId) || operators[0];
 
-  const currentOperator = operators.find(o => o.id === selectedOperatorId) || operators[0] || mockOperators[0];
-
-  const handlePdfFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
-      showToast('Please upload a valid PDF file');
-      return;
-    }
-    setPdfUploading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setCertificatePdfUrl(dataUrl);
-      setCertificatePdfName(file.name);
-      setPdfUploading(false);
-      showToast(language === 'gu' ? `PDF જોડાયેલ: ${file.name}` : `PDF attached: ${file.name}`);
-    };
-    reader.onerror = () => {
-      setPdfUploading(false);
-      showToast('Failed to read PDF file');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Operator actions
   const handleStartFiling = async () => {
     if (!selectedSubmission) return;
     setActionLoading(true);
     try {
       await ApiService.startFiling(selectedSubmission.id);
-      const updated = { ...selectedSubmission, status: 'operator_filling' as const };
+      const updated: FormSubmission = {
+        ...selectedSubmission,
+        status: 'operator_filling',
+        assigned_operator_id: selectedOperatorId,
+        assigned_operator_name: currentOperator.full_name,
+        operator_started_at: new Date().toISOString()
+      };
       setSelectedSubmission(updated);
       setSubmissions(prev => prev.map(s => (s.id === selectedSubmission.id ? updated : s)));
-      showToast(language === 'gu' ? 'ફોર્મ ભરવાની પ્રક્રિયા શરૂ થઈ' : 'Started filing application');
+      showToast(language === 'gu' ? 'ફોર્મ ભરવાનું શરૂ થયું' : 'Filing started');
     } finally {
       setActionLoading(false);
     }
@@ -229,34 +220,59 @@ export default function OperatorPage() {
     }
   };
 
-  const handleUpdateStatus = async (newStatus: FormSubmission['status']) => {
+  const handleUpdateStatus = async (newStatus: FormSubmission['status'], customRejection?: string) => {
     if (!selectedSubmission) return;
     setActionLoading(true);
     try {
+      const finalRejection = customRejection !== undefined ? customRejection : selectedSubmission.rejection_reason;
       await ApiService.updateSubmissionStatus(
         selectedSubmission.id,
         newStatus,
-        govtAppIdInput,
-        operatorNotesInput,
-        rejectionReasonInput,
-        certificatePdfUrl,
-        certificatePdfName
+        govtAppIdInput || selectedSubmission.govt_portal_application_id,
+        operatorNotesInput || selectedSubmission.operator_notes,
+        finalRejection,
+        certificatePdfUrl || selectedSubmission.certificate_url,
+        certificatePdfName || selectedSubmission.certificate_file_name
       );
       const updated: FormSubmission = {
         ...selectedSubmission,
         status: newStatus,
-        govt_portal_application_id: govtAppIdInput,
-        operator_notes: operatorNotesInput,
-        rejection_reason: rejectionReasonInput,
+        govt_portal_application_id: govtAppIdInput || selectedSubmission.govt_portal_application_id,
+        operator_notes: operatorNotesInput || selectedSubmission.operator_notes,
+        rejection_reason: finalRejection,
         certificate_url: certificatePdfUrl || selectedSubmission.certificate_url,
         certificate_file_name: certificatePdfName || selectedSubmission.certificate_file_name,
-        completed_at: newStatus === 'approved' ? new Date().toISOString() : selectedSubmission.completed_at
+        completed_at: (newStatus === 'approved' || newStatus === 'rejected') ? new Date().toISOString() : selectedSubmission.completed_at
       };
       setSelectedSubmission(updated);
       setSubmissions(prev => prev.map(s => (s.id === selectedSubmission.id ? updated : s)));
       showToast(language === 'gu' ? `અરજી સ્થિતિ અપડેટ થઈ: ${newStatus}` : `Status updated to ${newStatus}`);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleConfirmRejection = async () => {
+    const finalReason = selectedRejectionTemplate.includes("Other")
+      ? (customRejectionExplanation || "Details verification failed. Please review documents and resubmit.")
+      : (customRejectionExplanation ? `${selectedRejectionTemplate} Notes: ${customRejectionExplanation}` : selectedRejectionTemplate);
+    
+    await handleUpdateStatus('rejected', finalReason);
+    setShowRejectionModal(false);
+    setCustomRejectionExplanation('');
+  };
+
+  const handlePdfFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfUploading(true);
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      setCertificatePdfUrl(blobUrl);
+      setCertificatePdfName(file.name);
+      showToast(`Attached ${file.name}`);
+    } finally {
+      setPdfUploading(false);
     }
   };
 
@@ -270,12 +286,27 @@ export default function OperatorPage() {
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'awaiting_otp':
         return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'resubmitted':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200 font-black';
       case 'rejected':
+      case 'correction_required':
         return 'bg-red-50 text-red-700 border-red-200';
       default:
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
   };
+
+  // Filter queue by active tab
+  const filteredSubmissions = submissions.filter(s => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'submitted') return s.status === 'submitted';
+    if (activeTab === 'resubmitted') return s.status === 'resubmitted';
+    if (activeTab === 'operator_filling') return s.status === 'operator_filling';
+    if (activeTab === 'awaiting_otp') return s.status === 'awaiting_otp';
+    if (activeTab === 'approved') return s.status === 'approved';
+    if (activeTab === 'rejected') return s.status === 'rejected' || s.status === 'correction_required';
+    return true;
+  });
 
   return (
     <>
@@ -306,14 +337,14 @@ export default function OperatorPage() {
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Workbench:</span>
-              <h1 className="text-sm font-black text-slate-900">Assisted Filing Console</h1>
-              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                1-Click Copy Sync
+              <h1 className="text-sm font-black text-slate-900">Operator Console</h1>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                1-Click Direct Copy
               </span>
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-xs text-slate-500 font-medium">Specialist:</span>
+              <span className="text-xs text-slate-500 font-medium">Logged in Operator:</span>
               <select
                 value={selectedOperatorId}
                 onChange={e => setSelectedOperatorId(e.target.value)}
@@ -337,7 +368,23 @@ export default function OperatorPage() {
         </div>
 
         {/* ─── MAIN WORKSPACE ─── */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-4">
+
+          {/* Authorized Services Strip for Operator */}
+          {currentOperator && currentOperator.assigned_forms && currentOperator.assigned_forms.length > 0 && (
+            <div className="bg-slate-100/80 rounded-xl px-4 py-2 border border-slate-200 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-bold text-slate-600 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#159447]" />
+                Authorized Forms Matrix:
+              </span>
+              {currentOperator.assigned_forms.map(slug => (
+                <span key={slug} className="px-2.5 py-0.5 bg-white border border-slate-300 rounded-full font-mono text-[11px] font-bold text-slate-800">
+                  {slug.replace(/_/g, ' ')}
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* ─── LEFT: APPLICATION QUEUE LIST (4 Cols) ─── */}
@@ -346,7 +393,7 @@ export default function OperatorPage() {
                 <div>
                   <h2 className="font-black text-base text-[#18232D]">Assigned Queue</h2>
                   <p className="text-xs text-[#5B6470]">
-                    {submissions.length} applications in queue
+                    {filteredSubmissions.length} of {submissions.length} applications
                   </p>
                 </div>
                 <span className="text-xs font-bold text-[#159447] bg-[#EAF6EE] px-2.5 py-1 rounded-full">
@@ -354,40 +401,69 @@ export default function OperatorPage() {
                 </span>
               </div>
 
-              <div className="space-y-2.5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
-                {submissions.map(sub => {
-                  const isSelected = selectedSubmission?.id === sub.id;
-                  const pillClass = getStatusPill(sub.status);
-                  return (
-                    <div
-                      key={sub.id}
-                      onClick={() => setSelectedSubmission(sub)}
-                      className={`p-3.5 rounded-xl border transition cursor-pointer text-left ${
-                        isSelected
-                          ? 'border-[#159447] bg-emerald-50/40 shadow-xs'
-                          : 'border-slate-200/80 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-mono font-bold text-xs text-[#18232D]">
-                          {sub.application_number}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${pillClass}`}>
-                          {sub.status.replace(/_/g, ' ')}
-                        </span>
-                      </div>
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                {(['all', 'submitted', 'resubmitted', 'operator_filling', 'awaiting_otp', 'approved', 'rejected'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition ${
+                      activeTab === tab
+                        ? 'bg-[#18232D] text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {tab === 'resubmitted' ? '⚡ Resubmitted' : tab.replace(/_/g, ' ').toUpperCase()}
+                  </button>
+                ))}
+              </div>
 
-                      <div className="font-extrabold text-sm text-[#18232D] mt-1.5">
-                        {sub.form_title_en}
-                      </div>
+              <div className="space-y-2.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+                {filteredSubmissions.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-slate-400">
+                    No applications in this category.
+                  </div>
+                ) : (
+                  filteredSubmissions.map(sub => {
+                    const isSelected = selectedSubmission?.id === sub.id;
+                    const pillClass = getStatusPill(sub.status);
+                    return (
+                      <div
+                        key={sub.id}
+                        onClick={() => setSelectedSubmission(sub)}
+                        className={`p-3.5 rounded-xl border transition cursor-pointer text-left ${
+                          isSelected
+                            ? 'border-[#159447] bg-emerald-50/40 shadow-xs'
+                            : 'border-slate-200/80 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-mono font-bold text-xs text-[#18232D]">
+                            {sub.application_number}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${pillClass}`}>
+                            {sub.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
 
-                      <div className="flex items-center justify-between text-xs text-[#5B6470] mt-2 pt-2 border-t border-slate-100">
-                        <span>👤 {sub.user_name || 'Citizen User'}</span>
-                        <span className="font-bold text-[#18232D]">₹{sub.total_fee}</span>
+                        <div className="font-extrabold text-sm text-[#18232D] mt-1.5">
+                          {sub.form_title_en}
+                        </div>
+
+                        {sub.status === 'resubmitted' && (
+                          <div className="mt-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block">
+                            ⚡ Citizen Corrected & Resubmitted
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-xs text-[#5B6470] mt-2 pt-2 border-t border-slate-100">
+                          <span>👤 {sub.user_name || 'Citizen User'}</span>
+                          <span className="font-bold text-[#18232D]">₹{sub.total_fee}</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -429,7 +505,19 @@ export default function OperatorPage() {
                     </div>
                   </div>
 
-                  {/* Citizen Contact Strip with Copy Buttons */}
+                  {/* Resubmission Alert if status is resubmitted */}
+                  {selectedSubmission.status === 'resubmitted' && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 font-medium">
+                      <strong>⚡ Resubmitted Application:</strong> Citizen has updated and resubmitted the form. Please review the updated field values below.
+                      {selectedSubmission.operator_notes && (
+                        <div className="mt-1 font-mono text-[11px] text-indigo-800">
+                          {selectedSubmission.operator_notes}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Citizen Contact Strip with Copy and Call Buttons */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-[#F8FAF9] rounded-xl border border-slate-200/70 text-xs">
                     <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200/70">
                       <div>
@@ -450,24 +538,33 @@ export default function OperatorPage() {
 
                     <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200/70">
                       <div>
-                        <span className="text-[#5B6470] block text-[10px] uppercase font-bold">Mobile Phone:</span>
-                        <span className="font-bold text-[#18232D] text-xs sm:text-sm">
-                          {selectedSubmission.user_phone || '+91 98980 12345'}
+                        <span className="text-[#5B6470] block text-[10px] uppercase font-bold">Citizen Mobile:</span>
+                        <span className="font-bold text-[#18232D] text-xs sm:text-sm font-mono">
+                          {selectedSubmission.user_phone || '+91 98250 44551'}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(selectedSubmission.user_phone || '9898012345', 'Mobile Number')}
-                        className="p-1.5 rounded-md bg-emerald-50 text-[#159447] hover:bg-[#159447] hover:text-white transition"
-                        title="Copy Mobile"
-                      >
-                        {copiedKey === 'Mobile Number' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={`tel:${(selectedSubmission.user_phone || '9825044551').replace(/[^0-9]/g, '')}`}
+                          className="p-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white transition"
+                          title="Call Citizen"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(selectedSubmission.user_phone || '9825044551', 'Mobile Number')}
+                          className="p-1.5 rounded-md bg-emerald-50 text-[#159447] hover:bg-[#159447] hover:text-white transition"
+                          title="Copy Mobile"
+                        >
+                          {copiedKey === 'Mobile Number' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200/70">
                       <div>
-                        <span className="text-[#5B6470] block text-[10px] uppercase font-bold">Fee Status:</span>
+                        <span className="text-[#5B6470] block text-[10px] uppercase font-bold">Total Fee Paid:</span>
                         <span className="font-bold text-[#159447] text-xs sm:text-sm">
                           ₹{selectedSubmission.total_fee} (PAID)
                         </span>
@@ -721,11 +818,12 @@ export default function OperatorPage() {
                       </button>
 
                       <button
-                        onClick={() => handleUpdateStatus('rejected')}
+                        onClick={() => setShowRejectionModal(true)}
                         disabled={actionLoading}
-                        className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition disabled:opacity-50"
+                        className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5"
                       >
-                        Reject Form
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                        <span>Request Correction / Reject</span>
                       </button>
                     </div>
                   </div>
@@ -741,6 +839,80 @@ export default function OperatorPage() {
 
           </div>
         </main>
+
+        {/* ─── MODAL: REJECT / CORRECTION REQUEST MODAL ─── */}
+        {showRejectionModal && selectedSubmission && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-red-100 text-red-700">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">Request Correction / Reject</h3>
+                    <p className="text-xs text-slate-500 font-mono">App: {selectedSubmission.application_number}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowRejectionModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600">
+                The citizen will see this reason on their tracking page and will be able to correct and resubmit without extra fee.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-900 mb-1">
+                    Select Rejection Reason:
+                  </label>
+                  <select
+                    value={selectedRejectionTemplate}
+                    onChange={e => setSelectedRejectionTemplate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-medium bg-slate-50"
+                  >
+                    {STANDARD_REJECTION_REASONS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-900 mb-1">
+                    Additional Explanation / Instructions for Citizen:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={customRejectionExplanation}
+                    onChange={e => setCustomRejectionExplanation(e.target.value)}
+                    placeholder="e.g. Please re-upload clear School LC copy showing applicant date of birth and father name clearly."
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRejectionModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRejection}
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition disabled:opacity-50 shadow-xs"
+                >
+                  Confirm Rejection & Notify Citizen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── MODAL: TRIGGER CITIZEN OTP ─── */}
         {showOtpModal && (

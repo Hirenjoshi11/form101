@@ -39,6 +39,13 @@ class AuthResponse(BaseModel):
     token_type: str = "bearer"
     user: Dict[str, Any]
 
+class GoogleAuthRequest(BaseModel):
+    """Typed schema for Google OAuth login — replaces raw dict for input validation."""
+    email: EmailStr
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 # Form Field Models
 class FormFieldOption(BaseModel):
     value: str
@@ -206,6 +213,13 @@ class OperatorCreate(BaseModel):
     phone: str
     district: str = "Ahmedabad"
     assigned_forms: Optional[List[str]] = []
+
+class OperatorUpdate(BaseModel):
+    """Whitelisted fields for operator profile updates — prevents mass assignment."""
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    district: Optional[str] = None
 
 # Operator Form Assignments
 class OperatorFormAssignment(BaseModel):

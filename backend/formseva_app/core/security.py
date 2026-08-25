@@ -27,13 +27,11 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
 
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Security(security_scheme)) -> Dict[str, Any]:
     if not credentials:
-        # Default mock citizen user for ease of local demo if no header provided
-        return {
-            "id": "c0000000-0000-0000-0000-000000000001",
-            "email": "citizen.demo@formseva.in",
-            "full_name": "Rameshbhai K. Prajapati",
-            "role": "citizen"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please provide a valid Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = credentials.credentials
     payload = decode_access_token(token)
     if not payload:
@@ -42,6 +40,9 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Secur
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Ensure 'id' is always available (JWT uses 'sub' per spec, but app code uses 'id')
+    if "sub" in payload and "id" not in payload:
+        payload["id"] = payload["sub"]
     return payload
 
 def require_role(allowed_roles: list[str]):

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
-from formseva_app.models.schemas import OperatorResponse, OperatorCreate, AuditLogItem, NotificationResponse
+from formseva_app.models.schemas import OperatorResponse, OperatorCreate, OperatorUpdate, AuditLogItem, NotificationResponse
 from formseva_app.core.database import db
 from formseva_app.core.security import require_role, get_current_user
 
@@ -157,16 +157,17 @@ def batch_assign_operator_forms(payload: dict, current_user: dict = Depends(requ
     return {"message": f"Assigned {len(resolved_form_ids)} forms to operator successfully", "assigned_form_ids": list(resolved_form_ids)}
 
 @router.delete("/operator-assignments/{assignment_id}", dependencies=[Depends(require_role(["admin"]))])
-def remove_operator_assignment(assignment_id: str, current_user: dict = Depends(require_role(["admin"]))):
+def remove_operator_assignment(assignment_id: str, form_id: Optional[str] = None, current_user: dict = Depends(require_role(["admin"]))):
     """Remove an operator's assignment to a form."""
     if assignment_id in db.operator_form_assignments:
         db.operator_form_assignments.pop(assignment_id)
         return {"message": "Assignment removed successfully"}
-    # Try finding by op_id/form_id
-    key = next((k for k, v in db.operator_form_assignments.items() if v.get("operator_id") == assignment_id or v.get("id") == assignment_id), None)
-    if key:
-        db.operator_form_assignments.pop(key)
-        return {"message": "Assignment removed successfully"}
+    # Try finding by op_id and form_id
+    for k, v in list(db.operator_form_assignments.items()):
+        if v.get("operator_id") == assignment_id:
+            if not form_id or v.get("form_id") == form_id or (v.get("form_id") in db.forms and db.forms[v.get("form_id")].get("slug") == form_id):
+                db.operator_form_assignments.pop(k)
+                return {"message": "Assignment removed successfully"}
     return {"message": "Assignment removed"}
 
 @router.get("/forms/{form_id}/eligible-operators", dependencies=[Depends(require_role(["admin"]))])
@@ -218,20 +219,21 @@ def create_operator(payload: OperatorCreate, current_user: dict = Depends(requir
     
     return OperatorResponse(**op_data)
 
-@router.put("/operators/{operator_id}")
-def update_operator_profile(operator_id: str, payload: dict):
+@router.put("/operators/{operator_id}", dependencies=[Depends(require_role(["admin"]))])
+def update_operator_profile(operator_id: str, payload: OperatorUpdate, current_user: dict = Depends(require_role(["admin"]))):
     """Update operator full profile."""
     op = db.operators.get(operator_id)
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
     
-    for k, v in payload.items():
-        if k != "id":
-            op[k] = v
+    update_data = payload.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        op[k] = v
     op["updated_at"] = datetime.now(timezone.utc)
     
     db.audit_logs.append({
         "id": str(uuid.uuid4()),
+        "actor_id": current_user["id"],
         "actor_role": "admin",
         "action": "UPDATE_OPERATOR_PROFILE",
         "entity_type": "operators",
@@ -241,13 +243,14 @@ def update_operator_profile(operator_id: str, payload: dict):
     })
     return op
 
-@router.delete("/operators/{operator_id}")
-def delete_operator_profile(operator_id: str):
+@router.delete("/operators/{operator_id}", dependencies=[Depends(require_role(["admin"]))])
+def delete_operator_profile(operator_id: str, current_user: dict = Depends(require_role(["admin"]))):
     """Delete an operator from the platform."""
     if operator_id in db.operators:
         deleted = db.operators.pop(operator_id)
         db.audit_logs.append({
             "id": str(uuid.uuid4()),
+            "actor_id": current_user["id"],
             "actor_role": "admin",
             "action": "DELETE_OPERATOR",
             "entity_type": "operators",
@@ -257,9 +260,8 @@ def delete_operator_profile(operator_id: str):
         })
     return {"message": "Operator deleted successfully"}
 
-# Form & Rates Management directly under /admin
-@router.put("/forms/{form_id}")
-def admin_update_form(form_id: str, payload: dict):
+@router.put("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
+def admin_update_form(form_id: str, payload: dict, current_user: dict = Depends(require_role(["admin"]))):
     """Admin updates form metadata, official/service fee, or turnaround time."""
     form = db.forms.get(form_id)
     if not form:
@@ -292,8 +294,8 @@ def admin_update_form(form_id: str, payload: dict):
     })
     return form
 
-@router.delete("/forms/{form_id}")
-def admin_delete_form(form_id: str):
+@router.delete("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
+def admin_delete_form(form_id: str, current_user: dict = Depends(require_role(["admin"]))):
     """Admin removes a service form from public catalog."""
     form = db.forms.get(form_id)
     if not form:
@@ -440,7 +442,7 @@ def filter_db_payments(from_date: Optional[str] = None, to_date: Optional[str] =
         
     return filtered
 
-@router.get("/billing/summary")
+@router.get("/billing/summary", dependencies=[Depends(require_role(["admin"]))])
 def get_billing_summary(from_date: Optional[str] = None, to_date: Optional[str] = None, service_id: Optional[str] = None, payment_status: Optional[str] = None, operator_id: Optional[str] = None):
     """
     Calculates primary financial KPIs directly from the real database store.
@@ -477,7 +479,7 @@ def get_billing_summary(from_date: Optional[str] = None, to_date: Optional[str] 
         "period": {"from_date": from_date, "to_date": to_date}
     }
 
-@router.get("/billing/revenue/monthly")
+@router.get("/billing/revenue/monthly", dependencies=[Depends(require_role(["admin"]))])
 def get_monthly_revenue(year: int = 2026, service_id: Optional[str] = None):
     """
     Returns monthly grouped revenue from the real database across the year.
@@ -526,7 +528,7 @@ def get_monthly_revenue(year: int = 2026, service_id: Optional[str] = None):
         })
     return result
 
-@router.get("/billing/revenue/daily")
+@router.get("/billing/revenue/daily", dependencies=[Depends(require_role(["admin"]))])
 def get_daily_revenue(from_date: Optional[str] = None, to_date: Optional[str] = None, service_id: Optional[str] = None):
     """
     Returns day-wise revenue series aggregated from database payments.
@@ -575,7 +577,7 @@ def get_daily_revenue(from_date: Optional[str] = None, to_date: Optional[str] = 
         
     return sorted_days
 
-@router.get("/billing/by-service")
+@router.get("/billing/by-service", dependencies=[Depends(require_role(["admin"]))])
 def get_revenue_by_service(from_date: Optional[str] = None, to_date: Optional[str] = None):
     """
     Returns revenue by form/service category calculated from real database records.
@@ -620,7 +622,7 @@ def get_revenue_by_service(from_date: Optional[str] = None, to_date: Optional[st
         
     return result
 
-@router.get("/billing/payment-methods")
+@router.get("/billing/payment-methods", dependencies=[Depends(require_role(["admin"]))])
 def get_payment_methods_split(from_date: Optional[str] = None, to_date: Optional[str] = None):
     """
     Returns distribution of payment methods from real database.
@@ -644,7 +646,7 @@ def get_payment_methods_split(from_date: Optional[str] = None, to_date: Optional
         "qr": {"count": counts["qr"], "percent": round((counts["qr"] / total_txns) * 100, 1), "volume": round(volumes["qr"], 2)}
     }
 
-@router.get("/billing/transactions")
+@router.get("/billing/transactions", dependencies=[Depends(require_role(["admin"]))])
 def get_billing_transactions(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,

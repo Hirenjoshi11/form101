@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
-from formseva_app.models.schemas import AuthRequest, AuthResponse
+from formseva_app.models.schemas import AuthRequest, AuthResponse, GoogleAuthRequest
 from formseva_app.core.database import db
 from formseva_app.core.security import create_access_token, get_current_user
 
@@ -19,27 +19,20 @@ def login_or_register(payload: AuthRequest):
     if role == "admin":
         admin = next((a for a in db.admins.values() if a["email"].lower() == email), None)
         if not admin:
-            # Register or bootstrap admin
-            admin_id = str(uuid.uuid4())
-            admin = {
-                "id": admin_id,
-                "full_name": payload.full_name or "Gujarat Seva Admin",
-                "email": email,
-                "role": "super_admin",
-                "is_active": True,
-                "created_at": datetime.now(timezone.utc)
-            }
-            db.admins[admin_id] = admin
+            raise HTTPException(
+                status_code=403,
+                detail="Admin account not found. Admins must be pre-registered by the system."
+            )
+        if not admin.get("is_active", True):
+            raise HTTPException(status_code=403, detail="Admin account is deactivated.")
         
         token_payload = {
             "sub": admin["id"],
-            "id": admin["id"],
             "email": admin["email"],
-            "full_name": admin["full_name"],
             "role": "admin"
         }
         token = create_access_token(token_payload)
-        return AuthResponse(access_token=token, user=token_payload)
+        return AuthResponse(access_token=token, user={**token_payload, "id": admin["id"], "full_name": admin["full_name"]})
 
     elif role == "operator":
         operator = next((o for o in db.operators.values() if o["email"].lower() == email), None)
@@ -48,14 +41,11 @@ def login_or_register(payload: AuthRequest):
         
         token_payload = {
             "sub": operator["id"],
-            "id": operator["id"],
             "email": operator["email"],
-            "full_name": operator["full_name"],
-            "district": operator["district"],
             "role": "operator"
         }
         token = create_access_token(token_payload)
-        return AuthResponse(access_token=token, user=token_payload)
+        return AuthResponse(access_token=token, user={**token_payload, "id": operator["id"], "full_name": operator["full_name"], "district": operator["district"]})
 
     else: # Citizen
         user = next((u for u in db.users.values() if u["email"].lower() == email), None)
@@ -74,29 +64,28 @@ def login_or_register(payload: AuthRequest):
         
         token_payload = {
             "sub": user["id"],
-            "id": user["id"],
             "email": user["email"],
-            "full_name": user["full_name"],
-            "phone": user.get("phone", ""),
-            "role": "citizen",
-            "preferred_language": user.get("preferred_language", "gu")
+            "role": "citizen"
         }
         token = create_access_token(token_payload)
-        return AuthResponse(access_token=token, user=token_payload)
+        return AuthResponse(access_token=token, user={**token_payload, "id": user["id"], "full_name": user["full_name"], "phone": user.get("phone", ""), "preferred_language": user.get("preferred_language", "gu")})
 
 @router.post("/google", response_model=AuthResponse)
-def google_auth_login(payload: dict):
+def google_auth_login(payload: GoogleAuthRequest):
     """
-    Direct Google OAuth login callback/token handler.
-    Authenticates user seamlessly without manual password entry.
+    Google OAuth login handler.
+    
+    ⚠️ SECURITY NOTE: In production, this endpoint MUST verify the Google ID token
+    using google.oauth2.id_token.verify_oauth2_token() before trusting the email.
+    Currently accepts the email directly — suitable for development only.
     """
-    email = payload.get("email", "").lower().strip()
+    email = payload.email.lower().strip()
     if not email:
         raise HTTPException(status_code=400, detail="Email is required for Google authentication")
         
-    full_name = payload.get("full_name") or email.split("@")[0].replace(".", " ").title()
-    avatar_url = payload.get("avatar_url")
-    phone = payload.get("phone", "")
+    full_name = payload.full_name or email.split("@")[0].replace(".", " ").title()
+    avatar_url = payload.avatar_url
+    phone = payload.phone or ""
     
     user = next((u for u in db.users.values() if u["email"].lower() == email), None)
     if not user:
@@ -121,16 +110,11 @@ def google_auth_login(payload: dict):
             
     token_payload = {
         "sub": user["id"],
-        "id": user["id"],
         "email": user["email"],
-        "full_name": user["full_name"],
-        "phone": user.get("phone", ""),
-        "role": "citizen",
-        "auth_provider": "google",
-        "preferred_language": user.get("preferred_language", "gu")
+        "role": "citizen"
     }
     token = create_access_token(token_payload)
-    return AuthResponse(access_token=token, user=token_payload)
+    return AuthResponse(access_token=token, user={**token_payload, "id": user["id"], "full_name": user["full_name"], "phone": user.get("phone", ""), "auth_provider": "google", "preferred_language": user.get("preferred_language", "gu")})
 
 @router.put("/phone")
 def update_citizen_phone(payload: dict, current_user: dict = Depends(get_current_user)):

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -9,7 +11,8 @@ import { downloadCertificatePdf, downloadReceiptPdf } from '@/lib/certificatePdf
 import { OtpModal } from '@/components/OtpModal';
 import {
   Search, FileText, Clock, CheckCircle2, Loader2,
-  Download, Award, KeyRound, AlertCircle, RefreshCw
+  Download, Award, KeyRound, AlertCircle, RefreshCw,
+  AlertTriangle, ArrowRight, RotateCcw
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -21,15 +24,18 @@ const STATUS_COLOR: Record<string, string> = {
   otp_received: 'bg-blue-50 text-blue-700 border-blue-200',
   submitted_to_govt_portal: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   approved: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold',
+  resubmitted: 'bg-indigo-50 text-indigo-800 border-indigo-300 font-black',
   rejected: 'bg-red-50 text-red-700 border-red-200',
+  correction_required: 'bg-red-50 text-red-700 border-red-200',
 };
 
 export default function TrackPage() {
+  const router = useRouter();
   const { t, language } = useLanguage();
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'approved' | 'in_progress'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'approved' | 'action_needed' | 'in_progress'>('all');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // OTP handling
@@ -43,7 +49,7 @@ export default function TrackPage() {
   const loadSubmissions = () => {
     const user = ApiService.getCurrentUser();
     if (!user) {
-      ApiService.login('citizen@formseva.in', 'citizen', 'Gujarat Citizen', '9999999999')
+      ApiService.login('citizen@formseva.in', 'citizen', 'Gujarat Citizen', '9825044551')
         .then(() => ApiService.getMySubmissions())
         .then(setSubmissions)
         .finally(() => setLoading(false));
@@ -76,7 +82,9 @@ export default function TrackPage() {
       otp_received: { gu: 'OTP મળેલ છે', hi: 'OTP प्राप्त', en: 'OTP Submitted' },
       submitted_to_govt_portal: { gu: 'સરકારી પોર્ટલ પર ફાઇલ થયેલ', hi: 'सरकारी पोर्टल पर दर्ज', en: 'Filed on Govt Portal' },
       approved: { gu: t.statusApproved, hi: t.statusApproved, en: t.statusApproved },
-      rejected: { gu: t.statusRejected, hi: t.statusRejected, en: t.statusRejected },
+      resubmitted: { gu: 'ફરીથી સબમિટ થયેલ (ચકાસણી હેઠળ)', hi: 'पुनः प्रस्तुत (समीक्षा जारी)', en: 'Resubmitted (In Review)' },
+      rejected: { gu: 'અરજીમાં ક્ષતિ / સુધારો જરૂરી', hi: 'संशोधन आवश्यक', en: 'Correction Required' },
+      correction_required: { gu: 'અરજીમાં સુધારો જરૂરી', hi: 'संशोधन आवश्यक', en: 'Correction Required' },
     };
     return map[status]?.[language] ?? status;
   };
@@ -93,7 +101,8 @@ export default function TrackPage() {
     if (!matchesQuery) return false;
 
     if (activeTab === 'approved') return s.status === 'approved';
-    if (activeTab === 'in_progress') return s.status !== 'approved' && s.status !== 'rejected';
+    if (activeTab === 'action_needed') return s.status === 'rejected' || s.status === 'correction_required' || s.status === 'awaiting_otp';
+    if (activeTab === 'in_progress') return s.status !== 'approved' && s.status !== 'rejected' && s.status !== 'correction_required';
     return true;
   });
 
@@ -145,6 +154,7 @@ export default function TrackPage() {
   };
 
   const approvedCount = submissions.filter(s => s.status === 'approved' || Boolean(s.certificate_url)).length;
+  const actionNeededCount = submissions.filter(s => s.status === 'rejected' || s.status === 'correction_required' || s.status === 'awaiting_otp').length;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -172,10 +182,8 @@ export default function TrackPage() {
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               {language === 'gu'
-                ? 'લાઈવ સ્ટેટસ જુઓ, ઓપરેટરને OTP આપો અને પ્રમાણપત્ર ડાઉનલોડ કરો'
-                : language === 'hi'
-                ? 'लाइव स्थिति देखें, ऑपरेटर को OTP दें और प्रमाण पत्र डाउनलोड करें'
-                : 'Track your live applications and download approved government certificates'}
+                ? 'લાઈવ સ્ટેટસ જુઓ, ક્ષતિ સુધારીને ફરી સબમિટ કરો અને તૈયાર પ્રમાણપત્ર ડાઉનલોડ કરો'
+                : 'Track live status, fix queries with 1-click resubmission, and download certificates'}
             </p>
           </div>
 
@@ -202,6 +210,21 @@ export default function TrackPage() {
             >
               All ({submissions.length})
             </button>
+
+            {actionNeededCount > 0 && (
+              <button
+                onClick={() => setActiveTab('action_needed')}
+                className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+                  activeTab === 'action_needed'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-red-700 bg-red-50 hover:bg-red-100'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>Action Needed ({actionNeededCount})</span>
+              </button>
+            )}
+
             <button
               onClick={() => setActiveTab('in_progress')}
               className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
@@ -253,10 +276,12 @@ export default function TrackPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3.5">
+          <div className="space-y-4">
             {filtered.map(sub => {
               const isApproved = sub.status === 'approved';
               const isAwaitingOtp = sub.status === 'awaiting_otp';
+              const isRejected = sub.status === 'rejected' || sub.status === 'correction_required';
+              const isResubmitted = sub.status === 'resubmitted';
               const hasPdf = Boolean(
                 sub.certificate_url ||
                 isApproved ||
@@ -266,9 +291,13 @@ export default function TrackPage() {
               return (
                 <div
                   key={sub.id}
-                  className={`bg-white border rounded-2xl p-5 transition-all shadow-2xs ${
-                    isAwaitingOtp
+                  className={`bg-white border rounded-2xl p-5 transition-all shadow-2xs space-y-4 ${
+                    isRejected
+                      ? 'border-red-300 ring-2 ring-red-100 bg-red-50/10'
+                      : isAwaitingOtp
                       ? 'border-orange-300 ring-2 ring-orange-200 bg-orange-50/20'
+                      : isResubmitted
+                      ? 'border-indigo-300 bg-indigo-50/10'
                       : isApproved
                       ? 'border-emerald-200'
                       : 'border-slate-200/90'
@@ -347,6 +376,56 @@ export default function TrackPage() {
                     </div>
 
                   </div>
+
+                  {/* ─── CORRECTION REQUIRED BANNER & 1-CLICK RESUBMIT BUTTON ─── */}
+                  {isRejected && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-bold text-red-950 uppercase tracking-wide">
+                            {language === 'gu' ? 'ઓપરેટર દ્વારા સુધારો માંગવામાં આવ્યો છે:' : 'Correction Query Raised by Operator:'}
+                          </h4>
+                          <p className="text-xs text-red-900 font-medium">
+                            {sub.rejection_reason || 'Some details or uploaded documents require correction.'}
+                          </p>
+                          <p className="text-[11px] text-red-700">
+                            {language === 'gu'
+                              ? 'તમે તમારી અગાઉ ભરેલી માહિતી સીધી જોઈ શકો છો અને માત્ર ક્ષતિ સુધારીને સબમિટ કરી શકો છો. કોઈ વધારાનો શુલ્ક લાગશે નહીં.'
+                              : 'You can review your previously entered data, fix the specific error, and resubmit without paying again.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 flex justify-end">
+                        <Link
+                          href={`/forms/${sub.form_slug}?resubmit=${sub.id}`}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>
+                            {language === 'gu' ? 'અરજી સુધારો અને ફરી સબમિટ કરો' : language === 'hi' ? 'आवेदन सुधारें और पुनः प्रस्तुत करें' : 'Correct & Resubmit Application'}
+                          </span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resubmitted indicator */}
+                  {isResubmitted && (
+                    <div className="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 flex items-center justify-between">
+                      <span className="font-medium">
+                        {language === 'gu'
+                          ? 'તમારી સુધારેલી અરજી ઓપરેટરને મોકલી દેવામાં આવી છે. ટૂંક સમયમાં સરકારી પોર્ટલ પર ફાઇલ થશે.'
+                          : 'Your corrected application has been received by the operator for review and portal filing.'}
+                      </span>
+                      <span className="font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200 text-[11px]">
+                        Pending Review
+                      </span>
+                    </div>
+                  )}
+
                 </div>
               );
             })}

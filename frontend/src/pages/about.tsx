@@ -15,9 +15,13 @@ import {
   GraduationCap,
   School,
   ArrowRight,
+  ArrowDown,
   ShieldCheck,
   CheckCircle2,
-  Users
+  Users,
+  FileCheck,
+  KeyRound,
+  Download
 } from 'lucide-react';
 
 export default function AboutPage() {
@@ -28,6 +32,33 @@ export default function AboutPage() {
     if (language === 'hi') return hi;
     return en;
   };
+
+  const workflowSteps = [
+    {
+      num: 1,
+      title: t('૧. સેવા પસંદ કરો અને વિગતો ભરો', '1. सेवा चुनें और विवरण भरें', '1. Choose Service & Submit Details'),
+      desc: t('૫ મિનિટમાં સામાન્ય વિગતો અને જરૂરી દસ્તાવેજ અપલોડ કરો.', '5 मिनट में विवरण और दस्तावेज अपलोड करें।', 'Enter basic details and upload required documents in 5 mins.'),
+      icon: FileCheck
+    },
+    {
+      num: 2,
+      title: t('૨. સમર્પિત ઓપરેટર ફાઇલ કરશે', '2. समर्पित ऑपरेटर फाइल करेंगे', '2. Dedicated Operator Files on Portal'),
+      desc: t('તમારા વિસ્તારના પ્રમાણિત ઓપરેટર સરકારી પોર્ટલ પર ફોર્મ ભરશે.', 'प्रमाणित ऑपरेटर आधिकारिक पोर्टल पर फॉर्म भरेंगे।', 'Certified operator files your form on Digital Gujarat / Sarathi portal.'),
+      icon: Users
+    },
+    {
+      num: 3,
+      title: t('૩. સુરક્ષિત In-App OTP સહાય', '3. सुरक्षित In-App OTP सहायता', '3. Secure In-App OTP Relay'),
+      desc: t('સરકારી SMS દ્વારા આવેલ OTP એપ્લિકેશનમાં સીધો દાખલ કરો.', 'सरकारी एसएमएस से आया ओटीपी सुरक्षित रूप से साझा करें।', 'Enter OTP sent to your mobile phone securely inside the portal.'),
+      icon: KeyRound
+    },
+    {
+      num: 4,
+      title: t('૪. અધિકૃત પ્રમાણપત્ર મેળવો', '4. अधिकृत प्रमाण पत्र प्राप्त करें', '4. Download Approved Certificate'),
+      desc: t('મંજૂર પ્રમાણપત્ર અથવા સ્લોટ રસીદ સીધી PDF માં ડાઉનલોડ કરો.', 'स्वीकृत प्रमाण पत्र या रसीद तुरंत डाउनलोड करें।', 'Download official digitally signed PDF certificate directly from FormSeva.'),
+      icon: Download
+    }
+  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAF9] text-[#18232D] font-sans antialiased">
@@ -74,7 +105,51 @@ export default function AboutPage() {
           </p>
         </section>
 
-        {/* ─── SECTION 2: WHO WE ARE & WHY WE BUILT THIS SERVICE ─── */}
+        {/* ─── SECTION 2: 4-STEP PROCESS WORKFLOW (RESPONSIVE: HORIZONTAL ON DESKTOP, VERTICAL ON MOBILE) ─── */}
+        <section className="bg-white rounded-3xl p-6 sm:p-8 lg:p-10 border border-slate-200/80 shadow-xs space-y-6">
+          <div className="space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#159447]">
+              {t('સરળ ૪-તબક્કા પ્રક્રિયા', 'सरल 4-चरणीय प्रक्रिया', 'HOW FORMSEVA WORKS')}
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black text-[#18232D]">
+              {t('ઘરે બેઠા અરજીથી પ્રમાણપત્ર ડિલિવરી સુધી', 'घर बैठे आवेदन से प्रमाण पत्र तक', 'From Home Application to Official Certificate')}
+            </h2>
+          </div>
+
+          {/* Desktop & Mobile Responsive Steps Grid with Directional Flow Arrows */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {workflowSteps.map((step, idx) => {
+              const Icon = step.icon;
+              const isLast = idx === workflowSteps.length - 1;
+              return (
+                <React.Fragment key={step.num}>
+                  <div className="flex-1 bg-slate-50 border border-slate-200/90 rounded-2xl p-4 text-center space-y-2 hover:border-[#159447] transition shadow-2xs">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#159447] mx-auto flex items-center justify-center font-black">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                      {step.title}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 leading-normal">
+                      {step.desc}
+                    </p>
+                  </div>
+
+                  {!isLast && (
+                    <div className="flex items-center justify-center py-1 md:py-0 shrink-0">
+                      {/* Down arrow on mobile screens */}
+                      <ArrowDown className="w-5 h-5 text-[#159447] md:hidden animate-bounce" />
+                      {/* Right arrow on desktop/tablet screens */}
+                      <ArrowRight className="hidden md:block w-5 h-5 text-[#159447]" />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ─── SECTION 3: WHO WE ARE & WHY WE BUILT THIS SERVICE ─── */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 lg:p-10 border border-slate-200/80 shadow-xs space-y-6">
           {/* Who We Are */}
           <div className="space-y-2.5">
@@ -107,7 +182,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ─── SECTION 3: VISION & MISSION ─── */}
+        {/* ─── SECTION 4: VISION & MISSION ─── */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
           {/* Vision */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-3">
@@ -144,7 +219,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ─── SECTION 4: OUR SOCIAL COMMITMENT — 7% FOR EDUCATION ─── */}
+        {/* ─── SECTION 5: OUR SOCIAL COMMITMENT — 7% FOR EDUCATION ─── */}
         <section className="bg-gradient-to-br from-[#EAF6EE] via-[#F4F9F5] to-[#E5F3EA] rounded-3xl p-6 sm:p-10 border-2 border-emerald-300 shadow-xs space-y-6">
           
           <div className="space-y-2.5">
@@ -184,20 +259,23 @@ export default function AboutPage() {
 
           {/* Flow Visual */}
           <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-bold text-[#18232D]">
-              <span className="bg-emerald-100 text-[#159447] px-3 py-1.5 rounded-xl border border-emerald-300">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-bold text-[#18232D]">
+              <span className="bg-emerald-100 text-[#159447] px-3.5 py-2 rounded-xl border border-emerald-300 w-full sm:w-auto text-center">
                 7% OF PROFIT
               </span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#159447]" />
-              <span className="bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-                {t('શિક્ષણ', 'शिक्षा', 'EDUCATION')}
+              <ArrowRight className="hidden sm:block w-4 h-4 text-[#159447]" />
+              <ArrowDown className="sm:hidden w-4 h-4 text-[#159447]" />
+              <span className="bg-slate-100 px-3.5 py-2 rounded-xl border border-slate-200 w-full sm:w-auto text-center">
+                {t('શિક્ષણ સહાય', 'शिक्षा सहायता', 'EDUCATION SUPPORT')}
               </span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#159447]" />
-              <span className="bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+              <ArrowRight className="hidden sm:block w-4 h-4 text-[#159447]" />
+              <ArrowDown className="sm:hidden w-4 h-4 text-[#159447]" />
+              <span className="bg-slate-100 px-3.5 py-2 rounded-xl border border-slate-200 w-full sm:w-auto text-center">
                 {t('શિક્ષણ સામગ્રી', 'शिक्षण सामग्री', 'LEARNING MATERIALS')}
               </span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#159447]" />
-              <span className="bg-[#159447] text-white px-3 py-1.5 rounded-xl">
+              <ArrowRight className="hidden sm:block w-4 h-4 text-[#159447]" />
+              <ArrowDown className="sm:hidden w-4 h-4 text-[#159447]" />
+              <span className="bg-[#159447] text-white px-3.5 py-2 rounded-xl w-full sm:w-auto text-center">
                 {t('બાળકો અને વિદ્યાર્થીઓ', 'बच्चे व छात्र', 'CHILDREN & STUDENTS')}
               </span>
             </div>

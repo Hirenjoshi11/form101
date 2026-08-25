@@ -279,6 +279,45 @@ def upload_submission_document(
     if current_user.get("role") == "citizen" and sub["user_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized to upload files for this application")
     
+    # ── File Security Validation ──
+    MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+    ALLOWED_MIME_TYPES = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+    ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+    
+    # Validate file extension
+    file_ext = ""
+    if file.filename:
+        file_ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '{file_ext}' not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        )
+    
+    # Validate MIME type
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"MIME type '{content_type}' not allowed. Accepted: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
+        )
+    
+    # Validate file size (read content to check — in production use streaming/Content-Length)
+    file_content = file.file.read()
+    file_size = len(file_content)
+    file.file.seek(0)  # Reset for downstream consumers
+    
+    if file_size > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({file_size / (1024*1024):.1f} MB). Maximum allowed: 5 MB"
+        )
+    
     doc_id = str(uuid.uuid4())
     storage_path = f"submissions/{submission_id}/{document_type_key}_{file.filename}"
     
@@ -287,7 +326,8 @@ def upload_submission_document(
     if existing_doc:
         existing_doc["file_name"] = file.filename
         existing_doc["storage_path"] = storage_path
-        existing_doc["mime_type"] = file.content_type or "application/pdf"
+        existing_doc["mime_type"] = content_type
+        existing_doc["file_size_bytes"] = file_size
         existing_doc["created_at"] = datetime.now(timezone.utc)
         return {"message": "Document replaced successfully", "document": existing_doc}
     
@@ -296,8 +336,8 @@ def upload_submission_document(
         "submission_id": submission_id,
         "document_type_key": document_type_key,
         "file_name": file.filename,
-        "file_size_bytes": 1024 * 512, # mock approx 512 KB
-        "mime_type": file.content_type or "application/pdf",
+        "file_size_bytes": file_size,
+        "mime_type": content_type,
         "storage_path": storage_path,
         "is_verified": False,
         "created_at": datetime.now(timezone.utc)

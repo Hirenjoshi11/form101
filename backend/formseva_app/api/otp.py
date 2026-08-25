@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+import hashlib
 from fastapi import APIRouter, HTTPException, Depends
 from formseva_app.models.schemas import OtpTriggerRequest, OtpSubmitRequest
 from formseva_app.core.database import db
@@ -82,7 +83,8 @@ def trigger_otp_request(payload: OtpTriggerRequest, current_user: dict = Depends
 def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depends(get_current_user)):
     """
     Citizen submits the OTP in the app.
-    We NEVER log or store the raw SMS text, only the verification event.
+    The OTP code is hashed before storage — we NEVER store the raw OTP text.
+    Only the hash and verification metadata are persisted.
     """
     otp_req = db.otp_requests.get(payload.otp_request_id)
     if not otp_req:
@@ -103,9 +105,11 @@ def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depend
     otp_req["status"] = "submitted_by_citizen"
     otp_req["submitted_at"] = datetime.now(timezone.utc)
     
-    # In live setup, operator workbench receives the code via real-time WebSocket or secure session
-    # We provide simulated code transport for operator view without storing full SMS payload
-    otp_req["entered_code_display"] = payload.otp_code.strip()
+    # Store only the hashed OTP code — never the raw value
+    raw_code = payload.otp_code.strip()
+    otp_req["otp_code_hash"] = hashlib.sha256(raw_code.encode()).hexdigest()
+    # Masked display for operator confirmation (e.g., "****56")
+    otp_req["entered_code_display"] = f"****{raw_code[-2:]}" if len(raw_code) >= 2 else "****"
     
     sub["status"] = "otp_received"
     sub["updated_at"] = datetime.now(timezone.utc)
@@ -122,7 +126,9 @@ def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depend
         "created_at": datetime.now(timezone.utc)
     })
     
-    return {"message": "OTP submitted successfully to operator", "otp_request": otp_req}
+    # Return sanitized response — strip the hash, only return status metadata
+    safe_response = {k: v for k, v in otp_req.items() if k != "otp_code_hash"}
+    return {"message": "OTP submitted successfully to operator", "otp_request": safe_response}
 
 @router.get("/active/{submission_id}")
 def get_active_otp_prompt(submission_id: str, current_user: dict = Depends(get_current_user)):
@@ -131,4 +137,7 @@ def get_active_otp_prompt(submission_id: str, current_user: dict = Depends(get_c
         otp for otp in db.otp_requests.values() 
         if otp["submission_id"] == submission_id and otp["status"] in ("requested", "submitted_by_citizen")
     ), None)
+    # Strip sensitive hash from response
+    if active_otp and "otp_code_hash" in active_otp:
+        active_otp = {k: v for k, v in active_otp.items() if k != "otp_code_hash"}
     return {"active_otp": active_otp}

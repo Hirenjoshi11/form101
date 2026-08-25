@@ -9,11 +9,11 @@ import { DocumentUploader } from '@/components/DocumentUploader';
 import { OtpModal } from '@/components/OtpModal';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { ApiService } from '@/lib/api';
-import { CertificateForm, OtpRequest } from '@/lib/types';
+import { CertificateForm, FormSubmission, OtpRequest } from '@/lib/types';
 import {
   ShieldCheck, Clock, IndianRupee, FileText,
   CheckCircle2, ChevronRight, Loader2, AlertTriangle,
-  Sparkles, ArrowLeft
+  Sparkles, ArrowLeft, RefreshCw, AlertCircle, Phone
 } from 'lucide-react';
 
 const STEPS = ['personal', 'address', 'specific', 'documents', 'review'] as const;
@@ -21,7 +21,7 @@ type Step = typeof STEPS[number];
 
 export default function FormDetailPage() {
   const router = useRouter();
-  const { slug } = router.query as { slug: string };
+  const { slug, resubmit } = router.query as { slug: string; resubmit?: string };
   const { t, language } = useLanguage();
 
   const [form, setForm] = useState<CertificateForm | null>(null);
@@ -32,18 +32,51 @@ export default function FormDetailPage() {
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, File>>({});
 
+  const [resubmissionTarget, setResubmissionTarget] = useState<FormSubmission | null>(null);
+  const [resubmissionNote, setResubmissionNote] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [otpRequest, setOtpRequest] = useState<OtpRequest | null>(null);
   const [otpOpen, setOtpOpen] = useState(false);
   const [done, setDone] = useState(false);
 
-  const loadForm = () => {
+  // Pre-fill citizen phone if available in session
+  useEffect(() => {
+    const user = ApiService.getCurrentUser();
+    if (user?.phone && !fieldValues.mobile_number) {
+      setFieldValues(prev => ({
+        ...prev,
+        mobile_number: user.phone.replace(/[^0-9]/g, '').slice(-10),
+      }));
+    }
+  }, []);
+
+  const loadForm = async () => {
     if (!slug) return;
-    ApiService.getFormDetail(slug)
-      .then(setForm)
-      .catch(() => setError('Form not found'))
-      .finally(() => setLoading(false));
+    try {
+      const f = await ApiService.getFormDetail(slug);
+      setForm(f);
+      
+      // If resubmission mode is active, fetch previous submission data
+      if (resubmit) {
+        try {
+          const prevSub = await ApiService.getSubmissionDetail(resubmit);
+          if (prevSub) {
+            setResubmissionTarget(prevSub);
+            if (prevSub.field_values) {
+              setFieldValues(prevSub.field_values);
+            }
+          }
+        } catch (e) {
+          console.warn('Could not load resubmission target:', e);
+        }
+      }
+    } catch (err) {
+      setError('Form not found');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -59,25 +92,51 @@ export default function FormDetailPage() {
       window.removeEventListener('formseva_data_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, [slug]);
+  }, [slug, resubmit]);
 
   const getTitle = (f: CertificateForm) =>
     language === 'gu' ? f.title_gu : language === 'hi' ? f.title_hi : f.title_en;
 
-  const stepLabel: Record<Step, string> = {
-    personal: t.stepPersonal,
-    address: t.stepAddress,
-    specific: t.stepSpecific,
-    documents: t.stepDocuments,
-    review: t.stepReview,
+  // Clean, non-duplicate step labels without duplicate numbers
+  const stepTitles: Record<Language, Record<Step, string>> = {
+    gu: {
+      personal: 'અંગત માહિતી',
+      address: 'સરનામું',
+      specific: 'સેવા વિગતો',
+      documents: 'દસ્તાવેજ અપલોડ',
+      review: 'ચકાસણી અને ફી',
+    },
+    hi: {
+      personal: 'व्यक्तिગત विवरण',
+      address: 'आवासीय पता',
+      specific: 'सेवा विवरण',
+      documents: 'दस्तावेज अपलोड',
+      review: 'समीक्षा एवं भुगतान',
+    },
+    en: {
+      personal: 'Personal Details',
+      address: 'Address Info',
+      specific: 'Service Details',
+      documents: 'Documents',
+      review: 'Review & Pay',
+    },
   };
 
   const currentStepIdx = STEPS.indexOf(step);
 
   const handleNext = () => {
+    // Validate phone number on step 1
+    if (step === 'personal') {
+      const phone = fieldValues.mobile_number || fieldValues.mobile || fieldValues.phone;
+      if (!phone || String(phone).replace(/[^0-9]/g, '').length < 10) {
+        alert(language === 'gu' ? 'કૃપા કરીને માન્ય ૧૦-અંકનો મોબાઈલ નંબર દાખલ કરો.' : language === 'hi' ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
+        return;
+      }
+    }
     const nextIdx = currentStepIdx + 1;
     if (nextIdx < STEPS.length) setStep(STEPS[nextIdx]);
   };
+
   const handlePrev = () => {
     const prevIdx = currentStepIdx - 1;
     if (prevIdx >= 0) setStep(STEPS[prevIdx]);
@@ -85,25 +144,55 @@ export default function FormDetailPage() {
 
   const handlePrefillDemo = () => {
     setFieldValues({
-      full_name: 'Rameshchandra B. Patel',
+      applicant_name: 'Rameshchandra B. Patel',
+      father_husband_name: 'Bhagwandas Patel',
       father_name: 'Bhagwandas Patel',
-      gender: 'Male',
+      mother_name: 'Savitaben Patel',
+      candidate_name: 'Rameshchandra B. Patel',
+      gender: 'male',
       dob: '1985-06-15',
-      mobile: '9825044551',
+      mobile_number: '9825044551',
       aadhaar_number: '982145519821',
       annual_income: '120000',
+      family_gross_income: '320000',
       district: 'Ahmedabad',
       taluka: 'Daskroi',
-      village: 'Bopal',
-      pincode: '380058',
+      village_city: 'Vastral',
+      village_name: 'Vastral',
+      residential_address: 'B-402, Radhe Shyam Residency, SP Ring Road, Vastral',
+      pincode: '382418',
+      residence_years: '25',
       ration_card_no: '0712398214',
-      purpose: 'Education Assistance / Scheme Benefit',
-      category: 'SEBC / OBC',
-      sub_caste: 'Patel / Prajapati',
-      religion: 'Hindu',
+      income_purpose: 'scholarship',
+      caste_category: 'sebc',
+      caste_subcaste: 'Patidar / Kadva Patel',
+      religion: 'hindu',
+      sebc_caste_name: 'Prajapati',
+      caste_certificate_no: 'SEBC/2021/89412',
+      caste_cert_issue_date: '2021-05-10',
+      caste_cert_issuing_office: 'Mamlatdar Office Daskroi',
+      income_year_1: '110000',
+      income_year_2: '115000',
+      income_year_3: '120000',
+      parents_govt_designation: 'none',
+      record_type: '7_12',
       survey_number: '142/1',
       khata_number: '89',
-      vehicle_class: 'LMV (Light Motor Vehicle)',
+      rto_office: 'GJ-27',
+      licence_type: 'learner',
+      vehicle_class: 'MCWG_LMV',
+      educational_qualification: '10th_pass',
+      blood_group: 'B+',
+      nationality: 'indian',
+      category: 'gen_ews',
+      pwd_status: 'no',
+      email_address: 'ramesh.patel@gmail.com',
+      class_10_board: 'GSEB',
+      class_10_percentage: '82.5',
+      class_12_status: 'passed',
+      question_paper_medium: 'Gujarati',
+      exam_city_1: 'Ahmedabad',
+      exam_city_2: 'Gandhinagar'
     });
   };
 
@@ -113,11 +202,21 @@ export default function FormDetailPage() {
     try {
       const user = ApiService.getCurrentUser();
       if (!user) {
-        await ApiService.login('citizen@formseva.in', 'citizen', 'Gujarat Citizen', '9999999999');
+        const phone = fieldValues.mobile_number || '9825044551';
+        await ApiService.login('citizen@formseva.in', 'citizen', fieldValues.applicant_name || 'Gujarat Citizen', String(phone));
       }
-      const result = await ApiService.createSubmission(form.slug, fieldValues);
-      setSubmissionId(result.id);
-      setDone(true);
+
+      if (resubmissionTarget) {
+        // Resubmission flow - update existing application
+        const result = await ApiService.resubmitSubmission(resubmissionTarget.id, fieldValues, resubmissionNote);
+        setSubmissionId(result.id);
+        setDone(true);
+      } else {
+        // New application flow
+        const result = await ApiService.createSubmission(form.slug, fieldValues);
+        setSubmissionId(result.id);
+        setDone(true);
+      }
     } catch (e) {
       alert('Submission failed, please try again.');
     } finally {
@@ -147,7 +246,7 @@ export default function FormDetailPage() {
         <AlertTriangle className="w-12 h-12 text-amber-500" />
         <h1 className="text-xl font-bold text-slate-800">Form Not Found</h1>
         <button
-          onClick={() => router.push('/forms')}
+          onClick={() => router.push('/#services-catalog')}
           className="px-4 py-2 bg-[#159447] text-white text-xs font-bold rounded-xl"
         >
           Return to Services
@@ -155,6 +254,8 @@ export default function FormDetailPage() {
       </div>
     </div>
   );
+
+  const totalFee = form.official_fee + form.service_fee;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -167,6 +268,38 @@ export default function FormDetailPage() {
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
         
+        {/* Resubmission Mode Alert Banner */}
+        {resubmissionTarget && (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-200 text-amber-900 shrink-0 mt-0.5">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 text-xs sm:text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-black text-amber-950 uppercase tracking-wide">
+                    {language === 'gu' ? 'સુધારો અને ફરી સબમિશન મોડ' : language === 'hi' ? 'संशोधन एवं पुनः प्रस्तुतीकरण' : 'Correction & Resubmission Mode'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-amber-300 text-amber-950 font-mono font-bold text-[11px]">
+                    {resubmissionTarget.application_number}
+                  </span>
+                </div>
+                {resubmissionTarget.rejection_reason && (
+                  <p className="text-amber-900 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 font-medium">
+                    <strong className="font-bold">{language === 'gu' ? 'ઓપરેટર દ્વારા જણાવેલ ક્ષતિ: ' : 'Operator Query: '}</strong>
+                    {resubmissionTarget.rejection_reason}
+                  </p>
+                )}
+                <p className="text-amber-800 text-xs">
+                  {language === 'gu'
+                    ? 'તમારી ભૂલ સુધારીને નીચે આપેલ બટન પર ક્લિક કરો. આ માટે કોઈ વધારાનો શુલ્ક લેવામાં આવશે નહીં.'
+                    : 'Edit your details below and click Resubmit. No extra fee is charged.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header Strip */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -186,7 +319,7 @@ export default function FormDetailPage() {
               <span>•</span>
               <span className="flex items-center gap-1">
                 <IndianRupee className="w-3.5 h-3.5 text-[#159447]" />
-                Fee: ₹{form.official_fee + form.service_fee}
+                Fee: ₹{totalFee} (Govt: ₹{form.official_fee} + Assisted: ₹{form.service_fee})
               </span>
             </div>
           </div>
@@ -209,13 +342,13 @@ export default function FormDetailPage() {
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <h2 className="text-2xl font-black text-slate-900">
-              {language === 'gu' ? 'અરજી સફળતાપૂર્વક સબમિટ થઈ!' : language === 'hi' ? 'आवेदन सफलतापूर्वक जमा हुआ!' : 'Application Submitted Successfully!'}
+              {resubmissionTarget
+                ? (language === 'gu' ? 'અરજી સફળતાપૂર્વક ફરીથી સબમિટ થઈ!' : 'Application Resubmitted Successfully!')
+                : (language === 'gu' ? 'અરજી સફળતાપૂર્વક સબમિટ થઈ!' : 'Application Submitted Successfully!')}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
               {language === 'gu'
                 ? 'ઓપરેટર સરકારી પોર્ટલ પર ફોર્મ ભરવાનું શરૂ કરશે. સ્ટેટસ તપાસવા માટે ટ્રેક પેજ જુઓ.'
-                : language === 'hi'
-                ? 'ऑपरेटर सरकारी पोर्टल पर फाइलिंग शुरू करेंगे।'
                 : 'A dedicated operator is assigned to file your application on official Gujarat portals.'}
             </p>
             {submissionId && (
@@ -235,18 +368,19 @@ export default function FormDetailPage() {
           </div>
         ) : (
           <>
-            {/* Step Breadcrumb Indicator */}
+            {/* Single Clean Step Breadcrumb Indicator (No Duplicate Step Numbers) */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
               {STEPS.map((s, idx) => {
                 const isCurrent = s === step;
                 const isDone = idx < currentStepIdx;
+                const stepNum = idx + 1;
                 return (
                   <button
                     key={s}
                     onClick={() => {
                       if (idx <= currentStepIdx) setStep(s);
                     }}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                       isCurrent
                         ? 'bg-[#18232D] text-white shadow-xs'
                         : isDone
@@ -254,8 +388,16 @@ export default function FormDetailPage() {
                         : 'bg-white border border-slate-200 text-slate-400'
                     }`}
                   >
-                    {isDone ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <span>{idx + 1}.</span>}
-                    <span>{stepLabel[s]}</span>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black ${
+                      isCurrent
+                        ? 'bg-[#159447] text-white'
+                        : isDone
+                        ? 'bg-emerald-200 text-emerald-900'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {isDone ? '✓' : stepNum}
+                    </span>
+                    <span>{stepTitles[language][s]}</span>
                   </button>
                 );
               })}
@@ -283,8 +425,23 @@ export default function FormDetailPage() {
               {step === 'review' && (
                 <div className="space-y-5">
                   <h2 className="text-base font-black text-slate-900 border-b border-slate-100 pb-3">
-                    {language === 'gu' ? 'વિગતો ચકાસો અને ચૂકવણી કરો' : language === 'hi' ? 'विवरण जांचें और भुगतान करें' : 'Review Details & Payment'}
+                    {language === 'gu' ? 'વિગતો ચકાસો અને સબમિટ કરો' : language === 'hi' ? 'विवरण जांचें और जमा करें' : 'Review Details & Submit'}
                   </h2>
+
+                  {resubmissionTarget && (
+                    <div className="space-y-2 bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                      <label className="block text-xs font-bold text-amber-950">
+                        {language === 'gu' ? 'સુધારા અંગે ઓપરેટર માટે નોંધ (વૈકલ્પિક):' : 'Note for Operator regarding corrections (Optional):'}
+                      </label>
+                      <input
+                        type="text"
+                        value={resubmissionNote}
+                        onChange={e => setResubmissionNote(e.target.value)}
+                        placeholder="e.g. Corrected applicant name spelling as per Aadhaar Card"
+                        className="w-full px-3.5 py-2 bg-white rounded-xl border border-amber-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
 
                   {Object.keys(fieldValues).length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 rounded-2xl p-4 text-xs">
@@ -311,13 +468,17 @@ export default function FormDetailPage() {
                     </div>
                   )}
 
-                  {/* Fee Breakdown & Pay Button */}
+                  {/* Fee Breakdown & Submit/Pay Button */}
                   <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <span className="text-xs text-emerald-800 font-medium block">{t.totalFeeLabel}</span>
-                      <div className="text-2xl font-black text-slate-900">₹{form.official_fee + form.service_fee}</div>
+                      <div className="text-2xl font-black text-slate-900">
+                        {resubmissionTarget ? '₹0 (Paid)' : `₹${totalFee}`}
+                      </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
-                        Govt Fee: ₹{form.official_fee} + Assisted Service: ₹{form.service_fee}
+                        {resubmissionTarget
+                          ? 'Resubmission is free of charge (previously paid)'
+                          : `Govt Fee: ₹${form.official_fee} + Assisted Service: ₹${form.service_fee}`}
                       </div>
                     </div>
 
@@ -327,7 +488,11 @@ export default function FormDetailPage() {
                       className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-6 py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-sm disabled:opacity-50 transition"
                     >
                       {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <span>{t.submitAndPay} (₹{form.official_fee + form.service_fee})</span>
+                      <span>
+                        {resubmissionTarget
+                          ? (language === 'gu' ? 'સુધારેલી અરજી ફરીથી મોકલો' : 'Resubmit Corrected Application')
+                          : `${t.submitAndPay} (₹${totalFee})`}
+                      </span>
                     </button>
                   </div>
                 </div>

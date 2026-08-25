@@ -57,6 +57,10 @@ def confirm_payment(payment_intent_id: str, current_user: dict = Depends(get_cur
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
     
+    # IDOR protection: verify the authenticated user owns this payment
+    if payment.get("user_id") != current_user["id"] and current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to confirm this payment")
+    
     payment["status"] = "succeeded"
     payment["updated_at"] = datetime.now(timezone.utc)
     

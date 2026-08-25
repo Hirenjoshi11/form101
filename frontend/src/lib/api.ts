@@ -1,4 +1,4 @@
-import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions } from './types';
+import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions, OperatorFormAssignment } from './types';
 
 const getApiBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) return process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -44,13 +44,80 @@ export class ApiService {
       }
       return data;
     } catch (e) {
-      console.warn('API connection fallback, using local mock auth');
-      const mockUser = { id: 'c0000000-0000-0000-0000-000000000001', email, role, full_name: fullName || 'નાગરિક (Citizen)' };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_token', 'mock-token');
-        localStorage.setItem('formseva_user', JSON.stringify(mockUser));
+      // Only fall back to mock auth in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('API connection fallback, using local mock auth (DEV ONLY)');
+        const mockUser = { id: 'c0000000-0000-0000-0000-000000000001', email, role, full_name: fullName || 'નાગરિક (Citizen)' };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('formseva_token', 'mock-token');
+          localStorage.setItem('formseva_user', JSON.stringify(mockUser));
+        }
+        return { access_token: 'mock-token', user: mockUser };
       }
-      return { access_token: 'mock-token', user: mockUser };
+      throw e;
+    }
+  }
+
+  static async googleLogin(email: string, fullName?: string, phone?: string, avatarUrl?: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, full_name: fullName, phone, avatar_url: avatarUrl }),
+      });
+      if (!res.ok) throw new Error('Google authentication failed');
+      const data = await res.json();
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('formseva_token', data.access_token);
+        localStorage.setItem('formseva_user', JSON.stringify(data.user));
+      }
+      return data;
+    } catch (e) {
+      // Only fall back to mock auth in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('API fallback for Google Auth (DEV ONLY)');
+        const mockUser = {
+          id: 'c0000000-0000-0000-0000-000000000001',
+          email,
+          role: 'citizen',
+          full_name: fullName || 'Google User',
+          phone: phone || '+91 98250 44551',
+          auth_provider: 'google'
+        };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('formseva_token', 'mock-google-token');
+          localStorage.setItem('formseva_user', JSON.stringify(mockUser));
+        }
+        return { access_token: 'mock-google-token', user: mockUser };
+      }
+      throw e;
+    }
+  }
+
+  static async updatePhone(phone: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/phone`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ phone }),
+      });
+      if (res.ok && typeof window !== 'undefined') {
+        const cur = this.getCurrentUser();
+        if (cur) {
+          cur.phone = phone;
+          localStorage.setItem('formseva_user', JSON.stringify(cur));
+        }
+      }
+      return await res.json();
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        const cur = this.getCurrentUser();
+        if (cur) {
+          cur.phone = phone;
+          localStorage.setItem('formseva_user', JSON.stringify(cur));
+        }
+      }
+      return { message: 'Phone updated locally', phone };
     }
   }
 
@@ -210,6 +277,36 @@ export class ApiService {
       const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
       const found = stored.find(s => s.id === id);
       return found || mockSampleSubmission;
+    }
+  }
+
+  static async resubmitSubmission(submissionId: string, fieldValues: Record<string, any>, note?: string): Promise<FormSubmission> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/submissions/${submissionId}/resubmit`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ field_values: fieldValues, resubmission_note: note }),
+      });
+      if (!res.ok) throw new Error('Failed to resubmit application');
+      return await res.json();
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
+        const idx = stored.findIndex(s => s.id === submissionId);
+        if (idx >= 0) {
+          stored[idx] = {
+            ...stored[idx],
+            field_values: { ...stored[idx].field_values, ...fieldValues },
+            status: 'resubmitted',
+            resubmitted_at: new Date().toISOString(),
+            operator_notes: note ? `Citizen Resubmission Note: ${note}` : stored[idx].operator_notes
+          };
+          localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
+          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
+          return stored[idx];
+        }
+      }
+      throw e;
     }
   }
 
@@ -787,6 +884,90 @@ export class ApiService {
       };
     }
   }
+
+  // OPERATOR FORM ELIGIBILITY ASSIGNMENTS
+  static async getOperatorAssignedForms(): Promise<CertificateForm[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/operator/my-forms`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to get operator assigned forms');
+      return await res.json();
+    } catch (e) {
+      return await this.getForms();
+    }
+  }
+
+  static async getOperatorAssignments(): Promise<OperatorFormAssignment[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/operator-assignments`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to get assignments');
+      return await res.json();
+    } catch (e) {
+      return [
+        { id: 'a1', operator_id: 'b0000000-0000-0000-0000-000000000001', operator_name: 'Vicky', form_id: 'f0000000-0000-0000-0000-000000000005', form_slug: 'driving_licence_rto', form_title_en: 'Driving Licence Assistance', form_title_gu: 'ડ્રાઇવિંગ લાયસન્સ સહાયતા', is_active: true },
+        { id: 'a2', operator_id: 'b0000000-0000-0000-0000-000000000001', operator_name: 'Vicky', form_id: 'f0000000-0000-0000-0000-000000000006', form_slug: 'neet_exam', form_title_en: 'NEET UG Exam', form_title_gu: 'NEET UG પ્રવેશ પરીક્ષા', is_active: true },
+        { id: 'a3', operator_id: 'b0000000-0000-0000-0000-000000000001', operator_name: 'Vicky', form_id: 'f0000000-0000-0000-0000-000000000001', form_slug: 'income_certificate', form_title_en: 'Income Certificate', form_title_gu: 'આવકનું પ્રમાણપત્ર', is_active: true },
+        { id: 'a4', operator_id: 'b0000000-0000-0000-0000-000000000002', operator_name: 'Nikhil', form_id: 'f0000000-0000-0000-0000-000000000001', form_slug: 'income_certificate', form_title_en: 'Income Certificate', form_title_gu: 'આવકનું પ્રમાણપત્ર', is_active: true },
+        { id: 'a5', operator_id: 'b0000000-0000-0000-0000-000000000002', operator_name: 'Nikhil', form_id: 'f0000000-0000-0000-0000-000000000002', form_slug: 'ews_certificate', form_title_en: 'EWS Certificate', form_title_gu: 'EWS પ્રમાણપત્ર', is_active: true },
+        { id: 'a6', operator_id: 'b0000000-0000-0000-0000-000000000003', operator_name: 'DHulo', form_id: 'f0000000-0000-0000-0000-000000000004', form_slug: 'land_records_7_12', form_title_en: '7/12 Land Records', form_title_gu: '૭/૧૨ જમીન રેકોર્ડ', is_active: true },
+        { id: 'a7', operator_id: 'b0000000-0000-0000-0000-000000000003', operator_name: 'DHulo', form_id: 'f0000000-0000-0000-0000-000000000003', form_slug: 'caste_ncl_certificate', form_title_en: 'NCL Certificate', form_title_gu: 'નોન-ક્રીમીલેયર દાખલો', is_active: true },
+        { id: 'a8', operator_id: 'b0000000-0000-0000-0000-000000000004', operator_name: 'Loy', form_id: 'f0000000-0000-0000-0000-000000000005', form_slug: 'driving_licence_rto', form_title_en: 'Driving Licence Assistance', form_title_gu: 'ડ્રાઇવિંગ લાયસન્સ સહાયતા', is_active: true },
+        { id: 'a9', operator_id: 'b0000000-0000-0000-0000-000000000004', operator_name: 'Loy', form_id: 'f0000000-0000-0000-0000-000000000004', form_slug: 'land_records_7_12', form_title_en: '7/12 Land Records', form_title_gu: '૭/૧૨ જમીન રેકોર્ડ', is_active: true },
+      ];
+    }
+  }
+
+  static async assignOperatorForm(operatorId: string, formId: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/operator-assignments`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ operator_id: operatorId, form_id: formId }),
+      });
+      return await res.json();
+    } catch (e) {
+      return { message: 'Operator assigned' };
+    }
+  }
+
+  static async batchAssignOperatorForms(operatorId: string, formIds: string[]) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/operator-assignments/batch`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ operator_id: operatorId, form_ids: formIds }),
+      });
+      return await res.json();
+    } catch (e) {
+      return { message: 'Operator forms batch updated' };
+    }
+  }
+
+  static async removeOperatorAssignment(operatorId: string, formId?: string) {
+    try {
+      const url = formId
+        ? `${API_BASE_URL}/admin/operator-assignments/${operatorId}?form_id=${encodeURIComponent(formId)}`
+        : `${API_BASE_URL}/admin/operator-assignments/${operatorId}`;
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+      return await res.json();
+    } catch (e) {
+      return { message: 'Operator assignment removed' };
+    }
+  }
+
+  static async getEligibleOperatorsForForm(formId: string): Promise<Operator[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/forms/${formId}/eligible-operators`, {
+        headers: this.getHeaders(),
+      });
+      if (!res.ok) throw new Error('Failed to fetch eligible operators');
+      return await res.json();
+    } catch (e) {
+      return await this.getOperators();
+    }
+  }
 }
 
 // Fallback Mock Data for UI Resilience
@@ -811,7 +992,7 @@ export const mockForms: CertificateForm[] = [
     department_name_hi: 'राजस्व विभाग, ગુજરાત સરકાર',
     department_name_en: 'Revenue Department, Govt of Gujarat',
     official_fee: 20.00,
-    service_fee: 50.00,
+    service_fee: 99.00,
     turnaround_days: 2,
     expected_otp_count: 1,
     myth_en: 'Income Certificate in Gujarat is valid for only 1 year and must be renewed every financial year.',
@@ -856,7 +1037,7 @@ export const mockForms: CertificateForm[] = [
     department_name_hi: 'सामाजिक न्याय एवं अधिकारिता विभाग',
     department_name_en: 'Social Justice & Empowerment Department',
     official_fee: 50.00,
-    service_fee: 50.00,
+    service_fee: 99.00,
     turnaround_days: 2,
     expected_otp_count: 2,
     myth_en: 'EWS quota certificate is available to all backward classes including SC, ST, and SEBC/OBC.',
@@ -971,7 +1152,7 @@ export const mockForms: CertificateForm[] = [
     department_name_hi: 'પરિવહન આયુક્ત કાર્યાલય (RTO)',
     department_name_en: 'Transport Department (RTO Gujarat)',
     official_fee: 150.00,
-    service_fee: 100.00,
+    service_fee: 850.00,
     turnaround_days: 2,
     expected_otp_count: 2,
     myth_en: 'You must physically visit the RTO office and wait in long queues for hours just to take the Learner Licence test.',
@@ -1018,7 +1199,7 @@ export const mockForms: CertificateForm[] = [
     department_name_hi: 'राष्ट्रीय परीक्षा एजेंसी (NTA) / शिक्षा मंत्रालय',
     department_name_en: 'National Testing Agency (NTA) / Ministry of Education',
     official_fee: 1700.00,
-    service_fee: 150.00,
+    service_fee: 300.00,
     turnaround_days: 2,
     expected_otp_count: 2,
     required_docs_json: [
