@@ -7,7 +7,7 @@ import { Footer } from '@/components/Footer';
 import { DynamicFormStep } from '@/components/DynamicFormStep';
 import { DocumentUploader } from '@/components/DocumentUploader';
 import { OtpModal } from '@/components/OtpModal';
-import { useLanguage } from '@/i18n/LanguageContext';
+import { useLanguage, Language } from '@/i18n/LanguageContext';
 import { ApiService } from '@/lib/api';
 import { CertificateForm, FormSubmission, OtpRequest } from '@/lib/types';
 import {
