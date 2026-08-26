@@ -8,7 +8,7 @@ import { DynamicFormStep } from '@/components/DynamicFormStep';
 import { DocumentUploader } from '@/components/DocumentUploader';
 import { OtpModal } from '@/components/OtpModal';
 import { useLanguage, Language } from '@/i18n/LanguageContext';
-import { ApiService } from '@/lib/api';
+import { ApiService, mockForms } from '@/lib/api';
 import { CertificateForm, FormSubmission, OtpRequest, ServiceStep, ServiceDocument, FormField } from '@/lib/types';
 import {
   ShieldCheck, Clock, IndianRupee, FileText,
@@ -108,14 +108,73 @@ export default function FormDetailPage() {
         desc: language === 'gu' ? s.description_gu : language === 'hi' ? s.description_hi : s.description_en
       }));
     }
+
+    const currentSlug = form?.slug || slug;
+    if (currentSlug === 'income_certificate') {
+      return [
+        { key: 'applicant', label: language === 'gu' ? 'અરજદારની માહિતી' : language === 'hi' ? 'આવેદક વિવરણ' : 'Applicant Info' },
+        { key: 'address', label: language === 'gu' ? 'રહેઠાણનું સરનામું' : language === 'hi' ? 'આવાસીય પતા' : 'Residential Address' },
+        { key: 'family_income', label: language === 'gu' ? 'કુટુંબ અને આવકના સ્ત્રોત' : language === 'hi' ? 'પરિવાર એવં આય' : 'Family & Income Sources' },
+        { key: 'documents', label: language === 'gu' ? 'દસ્તાવેજ અપલોડ' : language === 'hi' ? 'દસ્તાવેજ અપલોડ' : 'Document Vault' },
+        { key: 'review', label: language === 'gu' ? 'ચકાસણી અને પેમેન્ટ' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Review & Submit' }
+      ];
+    }
+    if (currentSlug === 'ews_certificate') {
+      return [
+        { key: 'applicant', label: language === 'gu' ? 'અરજદાર અને જ્ઞાતિ' : language === 'hi' ? 'આવેદક એવં જાતિ' : 'Applicant & Caste' },
+        { key: 'address', label: language === 'gu' ? 'સરનામું' : language === 'hi' ? 'આવાસીય પતા' : 'Address Details' },
+        { key: 'family_income', label: language === 'gu' ? 'કુટુંબની કુલ વાર્ષિક આવક' : language === 'hi' ? 'પારિવારિક કુલ આય' : 'Gross Family Income' },
+        { key: 'property_assets', label: language === 'gu' ? 'મિલકત અને જમીન ચકાસણી' : language === 'hi' ? 'સંપત્તિ વિવરણ' : 'Property & Asset Limits' },
+        { key: 'documents', label: language === 'gu' ? 'દસ્તાવેજ અપલોડ' : language === 'hi' ? 'દસ્તાવેજ અપલોડ' : 'Required Evidence' },
+        { key: 'review', label: language === 'gu' ? 'ચકાસણી અને પેમેન્ટ' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Review & Submit' }
+      ];
+    }
+    if (currentSlug === 'caste_ncl_certificate') {
+      return [
+        { key: 'applicant', label: language === 'gu' ? 'અરજદાર અને SEBC જ્ઞાતિ' : language === 'hi' ? 'આવેદક એવં જાતિ' : 'Applicant & SEBC Caste' },
+        { key: 'address', label: language === 'gu' ? 'સરનામું અને માતા-પિતા વિગત' : language === 'hi' ? 'પતા એવં અભિભાવક' : 'Address & Parents' },
+        { key: 'three_year_income', label: language === 'gu' ? '૩ વર્ષની આવકનો ઇતિહાસ' : language === 'hi' ? '3 વર્ષ કી આય' : '3-Year Income History' },
+        { key: 'documents', label: language === 'gu' ? 'જરૂરી પુરાવા અપલોડ' : language === 'hi' ? 'દસ્તાવેજ અપલોડ' : 'Mandatory Proofs' },
+        { key: 'review', label: language === 'gu' ? 'ચકાસણી અને પેમેન્ટ' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Review & Submit' }
+      ];
+    }
+    if (currentSlug === 'land_records_7_12') {
+      return [
+        { key: 'applicant', label: language === 'gu' ? 'અરજદાર સંપર્ક વિગત' : language === 'hi' ? 'આવેદક સંપર્ક' : 'Applicant Contact' },
+        { key: 'land_location', label: language === 'gu' ? 'જમીન સ્થળ અને સર્વે નંબર' : language === 'hi' ? 'ભૂમિ સ્થાન એવં સર્વે' : 'Land Location & Survey' },
+        { key: 'documents', label: language === 'gu' ? 'ઓળખ / સંદર્ભ પુરાવો' : language === 'hi' ? 'પહચાન પ્રમાણ' : 'Supporting Reference' },
+        { key: 'review', label: language === 'gu' ? 'ચકાસણી અને ઓર્ડર' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Review & Download' }
+      ];
+    }
+    if (currentSlug === 'driving_licence_rto') {
+      return [
+        { key: 'applicant', label: language === 'gu' ? 'અંગત માહિતી અને લાયકાત' : language === 'hi' ? 'વ્યક્તિગત એવં શૈક્ષણિક' : 'Personal & Education' },
+        { key: 'address', label: language === 'gu' ? 'સરનામું' : language === 'hi' ? 'આવાસીય પતા' : 'Address Details' },
+        { key: 'licence_service', label: language === 'gu' ? 'લાયસન્સ પ્રકાર અને વાહન ક્લાસ' : language === 'hi' ? 'લાઇસન્સ એવં વાહન શ્રેણી' : 'Licence Type & Vehicle Class' },
+        { key: 'rto_selection', label: language === 'gu' ? 'નજીકની RTO કચેરી પસંદગી' : language === 'hi' ? 'આરટીઓ કાર્યાલય ચયન' : 'RTO Office Selection' },
+        { key: 'documents', label: language === 'gu' ? 'ફોટો અને સહી અપલોડ' : language === 'hi' ? 'ફોટો એવં હસ્તાક્ષર' : 'Photo & Signature Scan' },
+        { key: 'review', label: language === 'gu' ? 'ચકાસણી અને પેમેન્ટ' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Review & Slot Booking' }
+      ];
+    }
+    if (currentSlug === 'neet_exam') {
+      return [
+        { key: 'candidate', label: language === 'gu' ? 'ઉમેદવાર અને ઓળખ વિગત' : language === 'hi' ? 'ઉમ્મીદવાર એવં પહચાન' : 'Candidate & Identity' },
+        { key: 'address', label: language === 'gu' ? 'કાયમી સરનામું અને સંપર્ક' : language === 'hi' ? 'પતા એવં સંપર્ક' : 'Address & Contact' },
+        { key: 'academic', label: language === 'gu' ? 'ધોરણ ૧૦ અને ૧૨ શૈક્ષણિક વિગતો' : language === 'hi' ? 'શૈક્ષણિક વિવરણ' : 'Class 10 & 12 Academic' },
+        { key: 'exam_details', label: language === 'gu' ? 'પરીક્ષા માધ્યમ અને કેન્દ્ર' : language === 'hi' ? 'પરીક્ષા માધ્યમ એવં કેન્દ્ર' : 'Exam Medium & City Choices' },
+        { key: 'documents', label: language === 'gu' ? 'ફોટો, સહી અને ફિંગરપ્રિન્ટ' : language === 'hi' ? 'દસ્તાવેજ અપલોડ' : 'NTA Photo & Biometrics' },
+        { key: 'review', label: language === 'gu' ? 'અંતિમ ચકાસણી અને પેમેન્ટ' : language === 'hi' ? 'સમીક્ષા એવં ભુગતાન' : 'Final Verification & Submit' }
+      ];
+    }
+
     // Fallback default
     return [
-      { key: 'applicant', label: language === 'gu' ? 'અરજદાર વિગત' : language === 'hi' ? 'आवेदक विवरण' : 'Applicant Details' },
-      { key: 'address', label: language === 'gu' ? 'સરનામું' : language === 'hi' ? 'आवासीय पता' : 'Address' },
-      { key: 'documents', label: language === 'gu' ? 'દસ્તાવેજો' : language === 'hi' ? 'दस्तावेज' : 'Documents' },
-      { key: 'review', label: language === 'gu' ? 'ચકાસણી અને ફી' : language === 'hi' ? 'समीक्षा एवं शुल्क' : 'Review & Pay' }
+      { key: 'applicant', label: language === 'gu' ? 'અરજદાર વિગત' : language === 'hi' ? 'આવેદક વિવરણ' : 'Applicant Details' },
+      { key: 'address', label: language === 'gu' ? 'સરનામું' : language === 'hi' ? 'આવાસીય પતા' : 'Address' },
+      { key: 'documents', label: language === 'gu' ? 'દસ્તાવેજો' : language === 'hi' ? 'દસ્તાવેજ' : 'Documents' },
+      { key: 'review', label: language === 'gu' ? 'ચકાસણી અને ફી' : language === 'hi' ? 'સમીક્ષા એવં શુલ્ક' : 'Review & Pay' }
     ];
-  }, [form, language]);
+  }, [form, slug, language]);
 
   const currentStepIdx = useMemo(() => {
     const idx = stepsList.findIndex(s => s.key === activeStepKey);
@@ -327,21 +386,37 @@ export default function FormDetailPage() {
 
   const totalFee = form.official_fee + form.service_fee;
 
-  const getFieldsForStep = (stepKey: string) => {
-    if (!form?.fields) return [];
+  const getFieldsForStep = (stepKey: string): FormField[] => {
+    const defaultMock = mockForms.find(m => m.slug === slug || m.id === form?.id);
+    const allFields = (form?.fields && form.fields.length > 0) ? form.fields : (defaultMock?.fields || []);
+
+    if (!allFields || allFields.length === 0) return [];
+
     // 1. Direct match with step_section
-    const directMatches = form.fields.filter(f => f.step_section === stepKey);
+    const directMatches = allFields.filter(f => f.step_section === stepKey);
     if (directMatches.length > 0) return directMatches;
 
     // 2. Legacy/Alias Fallback support
     if (stepKey === 'applicant' || stepKey === 'candidate') {
-      const aliasMatches = form.fields.filter(f => f.step_section === 'personal' || f.step_section === stepKey);
+      const aliasMatches = allFields.filter(f => f.step_section === 'personal' || f.step_section === 'applicant' || f.step_section === 'candidate');
       if (aliasMatches.length > 0) return aliasMatches;
     }
+    if (stepKey === 'address') {
+      const addrMatches = allFields.filter(f => f.step_section === 'address');
+      if (addrMatches.length > 0) return addrMatches;
+    }
     if (['family_income', 'three_year_income', 'property_assets', 'land_location', 'licence_service', 'rto_selection', 'academic', 'exam_details'].includes(stepKey)) {
-      const legacyMatches = form.fields.filter(f => f.step_section === stepKey || f.step_section === 'specific');
+      const legacyMatches = allFields.filter(f => f.step_section === stepKey || f.step_section === 'specific');
       if (legacyMatches.length > 0) return legacyMatches;
     }
+
+    // 3. Fallback for the first step if no match was found:
+    if (currentStepIdx === 0) {
+      const firstMatches = allFields.filter(f => f.step_section === 'applicant' || f.step_section === 'candidate' || f.step_section === 'personal');
+      if (firstMatches.length > 0) return firstMatches;
+      return allFields;
+    }
+
     return directMatches;
   };
 

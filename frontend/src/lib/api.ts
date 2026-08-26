@@ -139,41 +139,94 @@ export class ApiService {
 
   // FORMS
   static async getForms(): Promise<CertificateForm[]> {
+    const STORAGE_KEY = 'formseva_custom_forms_v5';
+    let loadedForms: CertificateForm[] | null = null;
+
     if (typeof window !== 'undefined') {
-      const customForms = localStorage.getItem('formseva_custom_forms_v2');
+      const customForms = localStorage.getItem(STORAGE_KEY);
       if (customForms) {
         try {
-          return JSON.parse(customForms);
+          const parsed: CertificateForm[] = JSON.parse(customForms);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(f => f.fields && f.fields.length > 0)) {
+            loadedForms = parsed;
+          }
         } catch (e) {}
       }
     }
-    try {
-      const res = await fetch(`${API_BASE_URL}/forms`, { headers: this.getHeaders() });
-      if (!res.ok) throw new Error('Failed to load forms');
-      const data = await res.json();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_custom_forms_v2', JSON.stringify(data));
-      }
-      return data;
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_custom_forms_v2', JSON.stringify(mockForms));
-      }
-      return mockForms;
+
+    if (!loadedForms) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/forms`, { headers: this.getHeaders() });
+        if (res.ok) {
+          const data: CertificateForm[] = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            loadedForms = data;
+          }
+        }
+      } catch (e) {}
     }
+
+    if (!loadedForms) {
+      loadedForms = mockForms;
+    }
+
+    // Self-healing merge: ensure all 6 services always have full steps, fields, and required docs
+    const merged = loadedForms.map(form => {
+      const mock = mockForms.find(m => m.slug === form.slug || m.id === form.id);
+      if (!mock) return form;
+      return {
+        ...mock,
+        ...form,
+        fields: (form.fields && form.fields.length > 0) ? form.fields : mock.fields,
+        steps: (form.steps && form.steps.length > 0) ? form.steps : mock.steps,
+        required_docs_json: (form.required_docs_json && form.required_docs_json.length > 0) ? form.required_docs_json : mock.required_docs_json
+      };
+    });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    }
+
+    return merged;
   }
 
   static async getFormDetail(slugOrId: string): Promise<CertificateForm> {
-    const forms = await this.getForms();
-    const found = forms.find(f => f.slug === slugOrId || f.id === slugOrId);
-    if (found) return found;
+    const mock = mockForms.find(m => m.slug === slugOrId || m.id === slugOrId);
+    let form: CertificateForm | undefined;
+
     try {
       const res = await fetch(`${API_BASE_URL}/forms/${slugOrId}`, { headers: this.getHeaders() });
-      if (!res.ok) throw new Error('Failed to load form details');
-      return await res.json();
-    } catch (e) {
+      if (res.ok) {
+        form = await res.json();
+      }
+    } catch (e) {}
+
+    if (!form) {
+      const forms = await this.getForms();
+      form = forms.find(f => f.slug === slugOrId || f.id === slugOrId);
+    }
+
+    if (!form && mock) {
+      form = mock;
+    }
+
+    if (form && mock) {
+      if (!form.fields || form.fields.length === 0) {
+        form.fields = mock.fields;
+      }
+      if (!form.steps || form.steps.length === 0) {
+        form.steps = mock.steps;
+      }
+      if (!form.required_docs_json || form.required_docs_json.length === 0) {
+        form.required_docs_json = mock.required_docs_json;
+      }
+    }
+
+    if (!form) {
       throw new Error('Form not found');
     }
+
+    return form;
   }
 
   static async getFormDocuments(slugOrId: string): Promise<ServiceDocument[]> {
@@ -232,7 +285,7 @@ export class ApiService {
       updatedForms = [form, ...forms];
     }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('formseva_custom_forms_v2', JSON.stringify(updatedForms));
+      localStorage.setItem('formseva_custom_forms_v5', JSON.stringify(updatedForms));
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
     try {
@@ -249,7 +302,7 @@ export class ApiService {
     const forms = await this.getForms();
     const updated = forms.filter(f => f.id !== formId && f.slug !== formId);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('formseva_custom_forms_v2', JSON.stringify(updated));
+      localStorage.setItem('formseva_custom_forms_v5', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
     try {
@@ -1130,6 +1183,13 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 1,
+    steps: [
+      { id: 's101', form_id: 'f0000000-0000-0000-0000-000000000001', step_key: 'applicant', step_number: 1, title_gu: 'અરજદારની માહિતી', title_hi: 'આવેદક વિવરણ', title_en: 'Applicant Info' },
+      { id: 's102', form_id: 'f0000000-0000-0000-0000-000000000001', step_key: 'address', step_number: 2, title_gu: 'રહેઠાણનું સરનામું', title_hi: 'આવાસીય પતા', title_en: 'Residential Address' },
+      { id: 's103', form_id: 'f0000000-0000-0000-0000-000000000001', step_key: 'family_income', step_number: 3, title_gu: 'કુટુંબ અને આવકના સ્ત્રોત', title_hi: 'પરિવાર એવં આય', title_en: 'Family & Income Sources' },
+      { id: 's104', form_id: 'f0000000-0000-0000-0000-000000000001', step_key: 'documents', step_number: 4, title_gu: 'દસ્તાવેજ અપલોડ', title_hi: 'દસ્તાવેજ અપલોડ', title_en: 'Document Vault' },
+      { id: 's105', form_id: 'f0000000-0000-0000-0000-000000000001', step_key: 'review', step_number: 5, title_gu: 'ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Submit' }
+    ],
     fields: [
       { id: '101', form_id: 'f0000000-0000-0000-0000-000000000001', field_key: 'applicant_name', step_section: 'applicant', field_type: 'text', label_gu: 'અરજદારનું પૂરું નામ', label_hi: 'आवेदक का पूरा नाम', label_en: 'Full Name of Applicant', placeholder_gu: 'જેમ આધાર કાર્ડમાં છે તેમ', placeholder_hi: 'जैसा आधार कार्ड में है', placeholder_en: 'As per Aadhaar card', is_required: true, sort_order: 1 },
       { id: '102', form_id: 'f0000000-0000-0000-0000-000000000001', field_key: 'father_husband_name', step_section: 'applicant', field_type: 'text', label_gu: 'પિતા / પતિનું નામ', label_hi: 'पिता / पति का नाम', label_en: 'Father / Husband Name', placeholder_gu: 'પૂરું નામ દાખલ કરો', placeholder_hi: 'पूरा नाम दर्ज करें', placeholder_en: 'Enter full name', is_required: true, sort_order: 2 },
@@ -1172,6 +1232,14 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 2,
+    steps: [
+      { id: 's201', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'applicant', step_number: 1, title_gu: 'અરજદાર અને જ્ઞાતિ', title_hi: 'આવેદક એવં જાતિ', title_en: 'Applicant & Caste' },
+      { id: 's202', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'address', step_number: 2, title_gu: 'સરનામું', title_hi: 'આવાસીય પતા', title_en: 'Address Details' },
+      { id: 's203', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'family_income', step_number: 3, title_gu: 'કુટુંબની કુલ વાર્ષિક આવક', title_hi: 'પારિવારિક કુલ આય', title_en: 'Gross Family Income' },
+      { id: 's204', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'property_assets', step_number: 4, title_gu: 'મિલકત અને જમીન ચકાસણી', title_hi: 'સંપત્તિ વિવરણ', title_en: 'Property & Asset Limits' },
+      { id: 's205', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'documents', step_number: 5, title_gu: 'દસ્તાવેજ અપલોડ', title_hi: 'દસ્તાવેજ અપલોડ', title_en: 'Required Evidence' },
+      { id: 's206', form_id: 'f0000000-0000-0000-0000-000000000002', step_key: 'review', step_number: 6, title_gu: 'ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Submit' }
+    ],
     fields: [
       { id: '201', form_id: 'f0000000-0000-0000-0000-000000000002', field_key: 'applicant_name', step_section: 'applicant', field_type: 'text', label_gu: 'અરજદારનું પૂરું નામ', label_hi: 'आवेदक का पूरा नाम', label_en: 'Applicant Full Name', is_required: true, sort_order: 1 },
       { id: '202', form_id: 'f0000000-0000-0000-0000-000000000002', field_key: 'caste_subcaste', step_section: 'applicant', field_type: 'text', label_gu: 'જ્ઞાતિ અને પેટા-જ્ઞાતિ (General / Open Category)', label_hi: 'जाति एवं उप-जाति', label_en: 'Caste & Sub-Caste (General Category)', is_required: true, sort_order: 2 },
@@ -1215,6 +1283,13 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 3,
+    steps: [
+      { id: 's301', form_id: 'f0000000-0000-0000-0000-000000000003', step_key: 'applicant', step_number: 1, title_gu: 'અરજદાર અને SEBC જ્ઞાતિ', title_hi: 'આવેદક એવં જાતિ', title_en: 'Applicant & SEBC Caste' },
+      { id: 's302', form_id: 'f0000000-0000-0000-0000-000000000003', step_key: 'address', step_number: 2, title_gu: 'સરનામું અને માતા-પિતા વિગત', title_hi: 'પતા એવં અભિભાવક', title_en: 'Address & Parents' },
+      { id: 's303', form_id: 'f0000000-0000-0000-0000-000000000003', step_key: 'three_year_income', step_number: 3, title_gu: '૩ વર્ષની આવકનો ઇતિહાસ', title_hi: '3 વર્ષ કી આય', title_en: '3-Year Income History' },
+      { id: 's304', form_id: 'f0000000-0000-0000-0000-000000000003', step_key: 'documents', step_number: 4, title_gu: 'જરૂરી પુરાવા અપલોડ', title_hi: 'દસ્તાવેજ અપલોડ', title_en: 'Mandatory Proofs' },
+      { id: 's305', form_id: 'f0000000-0000-0000-0000-000000000003', step_key: 'review', step_number: 5, title_gu: 'ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Submit' }
+    ],
     fields: [
       { id: '301', form_id: 'f0000000-0000-0000-0000-000000000003', field_key: 'applicant_name', step_section: 'applicant', field_type: 'text', label_gu: 'અરજદારનું પૂરું નામ', label_hi: 'आवेदक का नाम', label_en: 'Applicant Name', is_required: true, sort_order: 1 },
       { id: '302', form_id: 'f0000000-0000-0000-0000-000000000003', field_key: 'gender', step_section: 'applicant', field_type: 'select', label_gu: 'જાતિ / લિંગ', label_hi: 'लिंग', label_en: 'Gender', options_json: [{ value: 'male', label_gu: 'પુરુષ', label_hi: 'पुरुष', label_en: 'Male' }, { value: 'female', label_gu: 'સ્ત્રી', label_hi: 'महिला', label_en: 'Female' }], is_required: true, sort_order: 2 },
@@ -1254,6 +1329,12 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 4,
+    steps: [
+      { id: 's401', form_id: 'f0000000-0000-0000-0000-000000000004', step_key: 'applicant', step_number: 1, title_gu: 'અરજદાર સંપર્ક વિગત', title_hi: 'આવેદક સંપર્ક', title_en: 'Applicant Contact' },
+      { id: 's402', form_id: 'f0000000-0000-0000-0000-000000000004', step_key: 'land_location', step_number: 2, title_gu: 'જમીન સ્થળ અને સર્વે નંબર', title_hi: 'ભૂમિ સ્થાન એવં સર્વે', title_en: 'Land Location & Survey' },
+      { id: 's403', form_id: 'f0000000-0000-0000-0000-000000000004', step_key: 'documents', step_number: 3, title_gu: 'ઓળખ / સંદર્ભ પુરાવો', title_hi: 'પહચાન પ્રમાણ', title_en: 'Supporting Reference' },
+      { id: 's404', form_id: 'f0000000-0000-0000-0000-000000000004', step_key: 'review', step_number: 4, title_gu: 'ચકાસણી અને ઓર્ડર', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Download' }
+    ],
     fields: [
       { id: '401', form_id: 'f0000000-0000-0000-0000-000000000004', field_key: 'applicant_name', step_section: 'applicant', field_type: 'text', label_gu: 'અરજદાર / ખાતેદારનું નામ', label_hi: 'आवेदक / खातेदार का नाम', label_en: 'Applicant / Landowner Name', is_required: true, sort_order: 1 },
       { id: '402', form_id: 'f0000000-0000-0000-0000-000000000004', field_key: 'mobile_number', step_section: 'applicant', field_type: 'number', label_gu: 'મોબાઈલ નંબર (પીડીએફ ડિલિવરી માટે)', label_hi: 'मोबाइल નંબર', label_en: 'Mobile Number for Delivery', is_required: true, sort_order: 2 },
@@ -1293,6 +1374,14 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 5,
+    steps: [
+      { id: 's501', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'applicant', step_number: 1, title_gu: 'અંગત માહિતી અને લાયકાત', title_hi: 'વ્યક્તિગત એવં શૈક્ષણિક', title_en: 'Personal & Education' },
+      { id: 's502', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'address', step_number: 2, title_gu: 'સરનામું', title_hi: 'આવાસીય પતા', title_en: 'Address Details' },
+      { id: 's503', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'licence_service', step_number: 3, title_gu: 'લાયસન્સ પ્રકાર અને વાહન ક્લાસ', title_hi: 'લાઇસન્સ એવં વાહન શ્રેણી', title_en: 'Licence Type & Vehicle Class' },
+      { id: 's504', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'rto_selection', step_number: 4, title_gu: 'નજીકની RTO કચેરી પસંદગી', title_hi: 'આરટીઓ કાર્યાલય ચયન', title_en: 'RTO Office Selection' },
+      { id: 's505', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'documents', step_number: 5, title_gu: 'ફોટો અને સહી અપલોડ', title_hi: 'ફોટો એવં હસ્તાક્ષર', title_en: 'Photo & Signature Scan' },
+      { id: 's506', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'review', step_number: 6, title_gu: 'ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Slot Booking' }
+    ],
     fields: [
       {
         id: '501', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'applicant_name', step_section: 'personal', field_type: 'text',
@@ -1337,6 +1426,14 @@ export const mockForms: CertificateForm[] = [
     ],
     is_active: true,
     sort_order: 6,
+    steps: [
+      { id: 's601', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'candidate', step_number: 1, title_gu: 'ઉમેદવાર અને ઓળખ વિગત', title_hi: 'ઉમ્મીદવાર એવં પહચાન', title_en: 'Candidate & Identity' },
+      { id: 's602', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'address', step_number: 2, title_gu: 'કાયમી સરનામું અને સંપર્ક', title_hi: 'પતા એવં સંપર્ક', title_en: 'Address & Contact' },
+      { id: 's603', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'academic', step_number: 3, title_gu: 'ધોરણ ૧૦ અને ૧૨ શૈક્ષણિક વિગતો', title_hi: 'શૈક્ષણિક વિવરણ', title_en: 'Class 10 & 12 Academic' },
+      { id: 's604', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'exam_details', step_number: 4, title_gu: 'પરીક્ષા માધ્યમ અને કેન્દ્ર', title_hi: 'પરીક્ષા માધ્યમ એવં કેન્દ્ર', title_en: 'Exam Medium & City Choices' },
+      { id: 's605', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'documents', step_number: 5, title_gu: 'ફોટો, સહી અને ફિંગરપ્રિન્ટ', title_hi: 'દસ્તાવેજ અપલોડ', title_en: 'NTA Photo & Biometrics' },
+      { id: 's606', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'review', step_number: 6, title_gu: 'અંતિમ ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Final Verification & Submit' }
+    ],
     fields: [
       { id: '601', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'candidate_name', step_section: 'candidate', field_type: 'text', label_gu: 'ઉમેદવારનું પૂરું નામ (૧૦મી માર્કશીટ મુજબ)', label_hi: 'उम्मीदवार का नाम (10वीं के अनुसार)', label_en: 'Candidate Full Name (As per 10th marksheet)', is_required: true, sort_order: 1 },
       { id: '602', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'mother_name', step_section: 'personal', field_type: 'text', label_gu: 'માતાશ્રીનું નામ', label_hi: 'माता का नाम', label_en: 'Mother Name', is_required: true, sort_order: 2 },
