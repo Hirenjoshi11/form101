@@ -87,6 +87,58 @@ class RequiredDocItem(BaseModel):
     label_en: str
     required: bool = True
 
+class ServiceStepResponse(BaseModel):
+    id: str
+    form_id: str
+    step_key: str
+    step_number: int
+    title_en: str
+    title_gu: str
+    title_hi: str
+    description_en: Optional[str] = None
+    description_gu: Optional[str] = None
+    description_hi: Optional[str] = None
+
+class ServiceDocumentResponse(BaseModel):
+    id: str
+    form_id: str
+    document_type_key: str
+    name_en: str
+    name_gu: str
+    name_hi: str
+    required_level: str = "mandatory" # mandatory, conditional, optional, supporting
+    condition_rule: Optional[Dict[str, Any]] = None
+    accepted_formats: List[str] = ["PDF", "JPG", "PNG"]
+    max_size_mb: int = 5
+    why_needed_en: Optional[str] = None
+    why_needed_gu: Optional[str] = None
+    why_needed_hi: Optional[str] = None
+    where_to_get_en: Optional[str] = None
+    where_to_get_gu: Optional[str] = None
+    where_to_get_hi: Optional[str] = None
+    source_authority_en: Optional[str] = None
+    source_authority_gu: Optional[str] = None
+    source_authority_hi: Optional[str] = None
+    is_active: bool = True
+    sort_order: int = 0
+
+class RtoOfficeResponse(BaseModel):
+    id: str
+    rto_code: str
+    district: str
+    office_name_en: str
+    office_name_gu: str
+    office_name_hi: str
+    address: str
+    supported_services: List[str] = []
+    is_active: bool = True
+
+class DistrictGeoResponse(BaseModel):
+    name_en: str
+    name_gu: str
+    name_hi: str
+    talukas: List[str] = []
+
 class FormBase(BaseModel):
     slug: str
     title_gu: str
@@ -99,9 +151,16 @@ class FormBase(BaseModel):
     department_name_hi: Optional[str] = None
     department_name_en: Optional[str] = None
     official_fee: float = 0.0
-    service_fee: float = 99.0
-    turnaround_days: int = 3
+    service_fee: float = 70.0
+    turnaround_days: int = 2
     expected_otp_count: int = 1
+    version: Optional[str] = None
+    exam_year: Optional[int] = None
+    bulletin_version: Optional[str] = None
+    myth_en: Optional[str] = None
+    myth_gu: Optional[str] = None
+    fact_en: Optional[str] = None
+    fact_gu: Optional[str] = None
     required_docs_json: List[RequiredDocItem] = []
     is_active: bool = True
     sort_order: int = 0
@@ -113,6 +172,8 @@ class FormResponse(FormBase):
     id: str
     created_at: datetime
     fields: Optional[List[FormFieldResponse]] = []
+    steps: Optional[List[ServiceStepResponse]] = []
+    service_documents: Optional[List[ServiceDocumentResponse]] = []
 
 # Submission Models
 class SubmissionFieldValue(BaseModel):

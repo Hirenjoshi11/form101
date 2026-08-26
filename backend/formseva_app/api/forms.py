@@ -1,16 +1,35 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Dict, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends
-from formseva_app.models.schemas import FormResponse, FormCreate, FormFieldResponse, FormFieldCreate, FormFieldBase
+from formseva_app.models.schemas import (
+    FormResponse, FormCreate, FormFieldResponse, FormFieldCreate, FormFieldBase,
+    ServiceStepResponse, ServiceDocumentResponse, RtoOfficeResponse, DistrictGeoResponse
+)
 from formseva_app.core.database import db
 from formseva_app.core.security import require_role
 
 router = APIRouter(prefix="/forms", tags=["Forms & Dynamic Fields"])
 
+@router.get("/rto/offices", response_model=List[RtoOfficeResponse])
+def get_rto_offices(district: Optional[str] = None, service: Optional[str] = None):
+    """List Gujarat RTO/ARTO transport offices (GJ-01 to GJ-39)."""
+    offices = list(db.rto_offices.values())
+    if district:
+        offices = [o for o in offices if o["district"].lower() == district.lower()]
+    if service:
+        offices = [o for o in offices if service.lower() in [s.lower() for s in o.get("supported_services", [])]]
+    offices.sort(key=lambda x: x.get("rto_code", ""))
+    return offices
+
+@router.get("/geography/districts", response_model=Dict[str, DistrictGeoResponse])
+def get_gujarat_districts():
+    """Get all 33 Gujarat administrative districts with their respective taluka lists."""
+    return db.geography_districts
+
 @router.get("", response_model=List[FormResponse])
 def list_forms(active_only: bool = True):
-    """List all available Gujarat certificate forms."""
+    """List all available Gujarat certificate forms with steps and document rules."""
     forms_list = list(db.forms.values())
     if active_only:
         forms_list = [f for f in forms_list if f.get("is_active", True)]
@@ -21,12 +40,19 @@ def list_forms(active_only: bool = True):
     for f in forms_list:
         fields = [field for field in db.form_fields.values() if field["form_id"] == f["id"]]
         fields.sort(key=lambda x: x.get("sort_order", 0))
-        result.append(FormResponse(**f, fields=fields))
+        
+        steps = [step for step in db.service_steps.values() if step["form_id"] == f["id"]]
+        steps.sort(key=lambda x: x.get("step_number", 0))
+        
+        docs = [doc for doc in db.service_documents.values() if doc["form_id"] == f["id"] and doc.get("is_active", True)]
+        docs.sort(key=lambda x: x.get("sort_order", 0))
+        
+        result.append(FormResponse(**f, fields=fields, steps=steps, service_documents=docs))
     return result
 
 @router.get("/{slug_or_id}", response_model=FormResponse)
 def get_form_detail(slug_or_id: str):
-    """Get complete form schema and dynamic fields for filling."""
+    """Get complete form schema, steps, dynamic fields, and conditional document rules."""
     form = db.forms.get(slug_or_id)
     if not form:
         form = next((f for f in db.forms.values() if f["slug"] == slug_or_id), None)
@@ -37,7 +63,41 @@ def get_form_detail(slug_or_id: str):
     fields = [field for field in db.form_fields.values() if field["form_id"] == form["id"]]
     fields.sort(key=lambda x: x.get("sort_order", 0))
     
-    return FormResponse(**form, fields=fields)
+    steps = [step for step in db.service_steps.values() if step["form_id"] == form["id"]]
+    steps.sort(key=lambda x: x.get("step_number", 0))
+    
+    docs = [doc for doc in db.service_documents.values() if doc["form_id"] == form["id"] and doc.get("is_active", True)]
+    docs.sort(key=lambda x: x.get("sort_order", 0))
+    
+    return FormResponse(**form, fields=fields, steps=steps, service_documents=docs)
+
+@router.get("/{slug_or_id}/documents", response_model=List[ServiceDocumentResponse])
+def get_form_documents(slug_or_id: str):
+    """Get full document requirement matrix (Mandatory, Conditional, Where to Get, Formats) for public /documents page."""
+    form = db.forms.get(slug_or_id)
+    if not form:
+        form = next((f for f in db.forms.values() if f["slug"] == slug_or_id), None)
+    
+    if not form:
+        raise HTTPException(status_code=404, detail="Certificate form not found")
+    
+    docs = [doc for doc in db.service_documents.values() if doc["form_id"] == form["id"] and doc.get("is_active", True)]
+    docs.sort(key=lambda x: x.get("sort_order", 0))
+    return docs
+
+@router.get("/{slug_or_id}/steps", response_model=List[ServiceStepResponse])
+def get_form_steps(slug_or_id: str):
+    """Get configured steps for a specific service."""
+    form = db.forms.get(slug_or_id)
+    if not form:
+        form = next((f for f in db.forms.values() if f["slug"] == slug_or_id), None)
+    
+    if not form:
+        raise HTTPException(status_code=404, detail="Certificate form not found")
+    
+    steps = [step for step in db.service_steps.values() if step["form_id"] == form["id"]]
+    steps.sort(key=lambda x: x.get("step_number", 0))
+    return steps
 
 @router.post("", response_model=FormResponse, dependencies=[Depends(require_role(["admin"]))])
 def create_form(payload: FormCreate):
@@ -50,7 +110,6 @@ def create_form(payload: FormCreate):
     
     db.forms[form_id] = form_data
     
-    # Log audit
     db.audit_logs.append({
         "id": str(uuid.uuid4()),
         "actor_role": "admin",
@@ -61,11 +120,11 @@ def create_form(payload: FormCreate):
         "created_at": datetime.now(timezone.utc)
     })
     
-    return FormResponse(**form_data, fields=[])
+    return FormResponse(**form_data, fields=[], steps=[], service_documents=[])
 
 @router.put("/{form_id}", response_model=FormResponse, dependencies=[Depends(require_role(["admin"]))])
 def update_form(form_id: str, payload: FormCreate):
-    """Admin endpoint to update form details."""
+    """Admin endpoint to update form details, service fees, or turning days."""
     form = db.forms.get(form_id)
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -88,7 +147,12 @@ def update_form(form_id: str, payload: FormCreate):
     
     fields = [field for field in db.form_fields.values() if field["form_id"] == form_id]
     fields.sort(key=lambda x: x.get("sort_order", 0))
-    return FormResponse(**form, fields=fields)
+    steps = [step for step in db.service_steps.values() if step["form_id"] == form_id]
+    steps.sort(key=lambda x: x.get("step_number", 0))
+    docs = [doc for doc in db.service_documents.values() if doc["form_id"] == form_id and doc.get("is_active", True)]
+    docs.sort(key=lambda x: x.get("sort_order", 0))
+    
+    return FormResponse(**form, fields=fields, steps=steps, service_documents=docs)
 
 @router.post("/{form_id}/fields", response_model=FormFieldResponse, dependencies=[Depends(require_role(["admin"]))])
 def create_form_field(form_id: str, payload: FormFieldBase):
