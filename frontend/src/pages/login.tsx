@@ -74,12 +74,18 @@ export default function LoginPage() {
     setError('');
     try {
       if (type === 'citizen') {
+        setEmail('citizen@formseva.in');
+        setPassword('');
         await ApiService.login('citizen@formseva.in', 'citizen', 'Rameshchandra B. Patel', '9825044551');
         router.push('/track');
       } else if (type === 'operator') {
+        setEmail('vicky.operator@formseva.in');
+        setPassword('Operator@123!');
         await ApiService.login('vicky.operator@formseva.in', 'operator', 'Vicky', '9825011223', 'Operator@123!');
         router.push('/operator');
       } else if (type === 'admin') {
+        setEmail('admin@formseva.gujarat.gov.in');
+        setPassword('Admin@FormSeva2026!');
         await ApiService.login('admin@formseva.gujarat.gov.in', 'admin', 'Gujarat Seva Admin', '9800000001', 'Admin@FormSeva2026!');
         router.push('/admin');
       }
@@ -165,12 +171,12 @@ export default function LoginPage() {
           </div>
 
           {/* Quick 1-Click Role Switcher */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('citizen')}
-                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition shadow-2xs"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition shadow-2xs group"
               >
                 <User className="w-4 h-4 mb-1 text-emerald-700" />
                 <span>Citizen</span>
@@ -178,7 +184,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('operator')}
-                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs group"
               >
                 <UserCheck className="w-4 h-4 mb-1 text-amber-700" />
                 <span>Operator</span>
@@ -186,11 +192,31 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('admin')}
-                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold transition shadow-2xs"
+                className="flex flex-col items-center justify-center p-3 min-h-[64px] rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold transition shadow-2xs group"
               >
                 <ShieldCheck className="w-4 h-4 mb-1 text-blue-700" />
                 <span>Admin</span>
               </button>
+            </div>
+
+            {/* Saved Demo Credentials Card */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] space-y-1.5">
+              <div className="flex items-center justify-between text-slate-700">
+                <span className="font-bold text-blue-700">🛡️ Admin:</span>
+                <span className="font-mono text-[10px] text-slate-600">admin@formseva.gujarat.gov.in</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 pl-4 text-[10px]">
+                <span>Password:</span>
+                <span className="font-mono font-bold text-slate-800">Admin@FormSeva2026!</span>
+              </div>
+              <div className="border-t border-slate-200/60 pt-1 flex items-center justify-between text-slate-700">
+                <span className="font-bold text-amber-700">💼 Operator:</span>
+                <span className="font-mono text-[10px] text-slate-600">vicky.operator@formseva.in</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 pl-4 text-[10px]">
+                <span>Password:</span>
+                <span className="font-mono font-bold text-slate-800">Operator@123!</span>
+              </div>
             </div>
           </div>
 
