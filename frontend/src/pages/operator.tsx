@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -137,9 +137,6 @@ export default function OperatorPage() {
       ]);
       setSubmissions(queue);
       setAssignedForms(forms);
-      if (queue.length > 0 && !selectedSubmission) {
-        setSelectedSubmission(queue[0]);
-      }
       if (ops && ops.length > 0) {
         setOperators(ops);
         if (!ops.some(o => o.id === selectedOperatorId)) {
@@ -168,7 +165,55 @@ export default function OperatorPage() {
     };
   }, [selectedOperatorId]);
 
-  const currentOperator = operators.find(o => o.id === selectedOperatorId) || operators[0];
+  const currentOperator = useMemo(() => {
+    return operators.find(o => o.id === selectedOperatorId) || operators[0];
+  }, [operators, selectedOperatorId]);
+
+  // Strictly filter queue to show ONLY submissions relevant to the currently logged in / selected operator
+  const operatorRelevantSubmissions = useMemo(() => {
+    if (!currentOperator) return [];
+    const assignedIds = currentOperator.assigned_form_ids || [];
+    const assignedSlugs = currentOperator.assigned_forms || [];
+
+    // If operator has no assignments, return empty array
+    if (assignedIds.length === 0 && assignedSlugs.length === 0) {
+      return [];
+    }
+
+    return submissions.filter(sub => {
+      // If directly assigned to this operator
+      if (sub.assigned_operator_id && sub.assigned_operator_id === currentOperator.id) return true;
+      // If form matches operator's authorized service forms
+      const matchesId = sub.form_id && assignedIds.includes(sub.form_id);
+      const matchesSlug = sub.form_slug && (assignedSlugs.includes(sub.form_slug) || assignedIds.includes(sub.form_slug));
+      return matchesId || matchesSlug;
+    });
+  }, [submissions, currentOperator]);
+
+  // Filter by active status tab on top of operator-relevant submissions
+  const filteredSubmissions = useMemo(() => {
+    return operatorRelevantSubmissions.filter(s => {
+      if (activeTab === 'all') return true;
+      if (activeTab === 'submitted') return s.status === 'submitted';
+      if (activeTab === 'resubmitted') return s.status === 'resubmitted';
+      if (activeTab === 'operator_filling') return s.status === 'operator_filling';
+      if (activeTab === 'awaiting_otp') return s.status === 'awaiting_otp';
+      if (activeTab === 'approved') return s.status === 'approved';
+      if (activeTab === 'rejected') return s.status === 'rejected' || s.status === 'correction_required';
+      return true;
+    });
+  }, [operatorRelevantSubmissions, activeTab]);
+
+  // Keep selectedSubmission synchronized with the operator-relevant pool
+  useEffect(() => {
+    if (operatorRelevantSubmissions.length > 0) {
+      if (!selectedSubmission || !operatorRelevantSubmissions.some(s => s.id === selectedSubmission.id)) {
+        setSelectedSubmission(operatorRelevantSubmissions[0]);
+      }
+    } else {
+      setSelectedSubmission(null);
+    }
+  }, [operatorRelevantSubmissions]);
 
   const handleStartFiling = async () => {
     if (!selectedSubmission) return;
@@ -296,18 +341,6 @@ export default function OperatorPage() {
     }
   };
 
-  // Filter queue by active tab
-  const filteredSubmissions = submissions.filter(s => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'submitted') return s.status === 'submitted';
-    if (activeTab === 'resubmitted') return s.status === 'resubmitted';
-    if (activeTab === 'operator_filling') return s.status === 'operator_filling';
-    if (activeTab === 'awaiting_otp') return s.status === 'awaiting_otp';
-    if (activeTab === 'approved') return s.status === 'approved';
-    if (activeTab === 'rejected') return s.status === 'rejected' || s.status === 'correction_required';
-    return true;
-  });
-
   return (
     <>
       <Head>
@@ -371,19 +404,31 @@ export default function OperatorPage() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-4">
 
           {/* Authorized Services Strip for Operator */}
-          {currentOperator && currentOperator.assigned_forms && currentOperator.assigned_forms.length > 0 && (
-            <div className="bg-slate-100/80 rounded-xl px-4 py-2 border border-slate-200 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-bold text-slate-600 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#159447]" />
-                Authorized Forms Matrix:
+          <div className="bg-slate-100/90 rounded-2xl px-4 py-3 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-[#159447]" />
+                <span>Authorized Services ({currentOperator?.assigned_forms?.length || currentOperator?.assigned_form_ids?.length || 0}):</span>
               </span>
-              {currentOperator.assigned_forms.map(slug => (
-                <span key={slug} className="px-2.5 py-0.5 bg-white border border-slate-300 rounded-full font-mono text-[11px] font-bold text-slate-800">
-                  {slug.replace(/_/g, ' ')}
-                </span>
-              ))}
+              {currentOperator && currentOperator.assigned_forms && currentOperator.assigned_forms.length > 0 ? (
+                currentOperator.assigned_forms.map(slug => {
+                  const formItem = assignedForms.find(f => f.slug === slug || f.id === slug);
+                  const title = formItem ? (language === 'gu' ? formItem.title_gu : formItem.title_en) : slug.replace(/_/g, ' ');
+                  return (
+                    <span key={slug} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-emerald-300/80 rounded-full font-bold text-xs text-emerald-900 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#159447]" />
+                      <span>{title}</span>
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-slate-400 italic">No services authorized for this operator yet.</span>
+              )}
             </div>
-          )}
+            <span className="text-[11px] text-slate-500 font-medium">
+              Only applications for your authorized services appear in your workbench.
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
