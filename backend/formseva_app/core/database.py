@@ -494,7 +494,375 @@ class DatabaseStore:
             step_id = str(uuid.uuid4())
             self.service_steps[step_id] = {"id": step_id, **step, "created_at": datetime.now(timezone.utc)}
 
-        # 8. Document Requirements Engine (Matrix with Mandatory, Conditional, and Supporting rules)
+        # 8. Dynamic Form Fields (Configured strictly per Form & Step Section)
+        district_opts = [
+            {"value": "Ahmedabad", "label_gu": "અમદાવાદ", "label_hi": "अहमदाबाद", "label_en": "Ahmedabad"},
+            {"value": "Surat", "label_gu": "સુરત", "label_hi": "सूरत", "label_en": "Surat"},
+            {"value": "Vadodara", "label_gu": "વડોદરા", "label_hi": "वडोदरा", "label_en": "Vadodara"},
+            {"value": "Rajkot", "label_gu": "રાજકોટ", "label_hi": "राजकोट", "label_en": "Rajkot"},
+            {"value": "Bhavnagar", "label_gu": "ભાવનગર", "label_hi": "भावनगर", "label_en": "Bhavnagar"},
+            {"value": "Gandhinagar", "label_gu": "ગાંધીનગર", "label_hi": "गांधीनगर", "label_en": "Gandhinagar"},
+            {"value": "Anand", "label_gu": "આણંદ", "label_hi": "आणंद", "label_en": "Anand"},
+            {"value": "Mehsana", "label_gu": "મહેસાણા", "label_hi": "महेसाणा", "label_en": "Mehsana"},
+            {"value": "Kutch", "label_gu": "કચ્છ", "label_hi": "कच्छ", "label_en": "Kutch"},
+            {"value": "Jamnagar", "label_gu": "જામનગર", "label_hi": "जामनगर", "label_en": "Jamnagar"},
+            {"value": "Junagadh", "label_gu": "જૂનાગઢ", "label_hi": "जूनागढ़", "label_en": "Junagadh"},
+            {"value": "Navsari", "label_gu": "નવસારી", "label_hi": "नवसारी", "label_en": "Navsari"},
+            {"value": "Valsad", "label_gu": "વલસાડ", "label_hi": "वलसाड", "label_en": "Valsad"},
+            {"value": "Bharuch", "label_gu": "ભરૂચ", "label_hi": "भरूच", "label_en": "Bharuch"},
+            {"value": "Patan", "label_gu": "પાટણ", "label_hi": "पाटन", "label_en": "Patan"},
+            {"value": "Banaskantha", "label_gu": "બનાસકાંઠા", "label_hi": "बनासकांठा", "label_en": "Banaskantha"},
+            {"value": "Sabarkantha", "label_gu": "સાબરકાંઠા", "label_hi": "साबरकांठा", "label_en": "Sabarkantha"},
+            {"value": "Amreli", "label_gu": "અમરેલી", "label_hi": "अमरेली", "label_en": "Amreli"},
+            {"value": "Morbi", "label_gu": "મોરબી", "label_hi": "मोरबी", "label_en": "Morbi"},
+            {"value": "Surendranagar", "label_gu": "સુરેન્દ્રનગર", "label_hi": "सुरेंद्रनगर", "label_en": "Surendranagar"},
+            {"value": "Panchmahal", "label_gu": "પંચમહાલ", "label_hi": "पंचमहाल", "label_en": "Panchmahal"},
+            {"value": "Dahod", "label_gu": "દાહોદ", "label_hi": "दाहोद", "label_en": "Dahod"},
+            {"value": "Kheda", "label_gu": "ખેડા", "label_hi": "खेड़ा", "label_en": "Kheda"},
+            {"value": "Porbandar", "label_gu": "પોરબંદર", "label_hi": "पोरबंदर", "label_en": "Porbandar"},
+            {"value": "Gir Somnath", "label_gu": "ગીર સોમનાથ", "label_hi": "गिर सोमनाथ", "label_en": "Gir Somnath"},
+            {"value": "Botad", "label_gu": "બોટાદ", "label_hi": "बोटाद", "label_en": "Botad"},
+            {"value": "Devbhumi Dwarka", "label_gu": "દેવભૂમિ દ્વારકા", "label_hi": "देवभूमि द्वारका", "label_en": "Devbhumi Dwarka"},
+            {"value": "Aravalli", "label_gu": "અરવલ્લી", "label_hi": "अरवल्ली", "label_en": "Aravalli"},
+            {"value": "Mahisagar", "label_gu": "મહીસાગર", "label_hi": "महीसागर", "label_en": "Mahisagar"},
+            {"value": "Chhota Udepur", "label_gu": "છોટા ઉદેપુર", "label_hi": "छोटा उदेपुर", "label_en": "Chhota Udepur"},
+            {"value": "Narmada", "label_gu": "નર્મદા", "label_hi": "नर्मदा", "label_en": "Narmada"},
+            {"value": "Tapi", "label_gu": "તાપી", "label_hi": "तापी", "label_en": "Tapi"},
+            {"value": "Dang", "label_gu": "ડાંગ", "label_hi": "डांग", "label_en": "Dang"}
+        ]
+
+        gender_opts = [
+            {"value": "male", "label_gu": "પુરુષ (Male)", "label_hi": "पुरुष", "label_en": "Male"},
+            {"value": "female", "label_gu": "સ્ત્રી (Female)", "label_hi": "महिला", "label_en": "Female"},
+            {"value": "other", "label_gu": "અન્ય (Other)", "label_hi": "अन्य", "label_en": "Other"}
+        ]
+
+        fields_master = [
+            # ════════ FORM 1: INCOME CERTIFICATE ════════
+            # Step 1: applicant
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "applicant_name", "step_section": "applicant", "field_type": "text", "label_gu": "અરજદારનું પૂરું નામ", "label_hi": "आवेदक का पूरा नाम", "label_en": "Full Name of Applicant", "placeholder_gu": "જેમ આધાર કાર્ડમાં છે તેમ", "placeholder_en": "As per Aadhaar card", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "father_husband_name", "step_section": "applicant", "field_type": "text", "label_gu": "પિતા / પતિનું નામ", "label_hi": "पिता / पति का नाम", "label_en": "Father / Husband Name", "placeholder_gu": "પૂરું નામ દાખલ કરો", "placeholder_en": "Enter full name", "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "gender", "step_section": "applicant", "field_type": "select", "label_gu": "જાતિ / લિંગ", "label_hi": "लिंग", "label_en": "Gender", "options_json": gender_opts, "is_required": True, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "dob", "step_section": "applicant", "field_type": "date", "label_gu": "જન્મ તારીખ", "label_hi": "जन्म तिथि", "label_en": "Date of Birth", "is_required": True, "sort_order": 4},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "mobile_number", "step_section": "applicant", "field_type": "number", "label_gu": "મોબાઈલ નંબર (ઓટીપી માટે)", "label_hi": "मोबाइल नंबर", "label_en": "Mobile Number (For OTP)", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "aadhaar_number", "step_section": "applicant", "field_type": "number", "label_gu": "આધાર કાર્ડ નંબર", "label_hi": "आधार कार्ड नंबर", "label_en": "Aadhaar Card Number", "placeholder_gu": "12 અંકનો આધાર નંબર", "placeholder_en": "12-digit Aadhaar number", "is_required": True, "sort_order": 6},
+            # Step 2: address
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "district", "step_section": "address", "field_type": "select", "label_gu": "જિલ્લો", "label_hi": "जिला", "label_en": "District", "options_json": district_opts, "is_required": True, "sort_order": 7},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "taluka", "step_section": "address", "field_type": "text", "label_gu": "તાલુકો", "label_hi": "तालुका", "label_en": "Taluka", "placeholder_gu": "તાલુકાનું નામ", "placeholder_en": "Taluka name", "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "village_city", "step_section": "address", "field_type": "text", "label_gu": "ગામ / શહેર", "label_hi": "गांव / शहर", "label_en": "Village / City", "placeholder_gu": "ગામ અથવા શહેરનું નામ", "placeholder_en": "Village or City", "is_required": True, "sort_order": 9},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "residential_address", "step_section": "address", "field_type": "textarea", "label_gu": "રહેઠાણનું સરનામું", "label_hi": "आवासीय पता", "label_en": "Full Residential Address", "placeholder_gu": "સંપૂર્ણ ઘરનું સરનામું", "placeholder_en": "Full house address", "is_required": True, "sort_order": 10},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "pincode", "step_section": "address", "field_type": "number", "label_gu": "પીનકોડ", "label_hi": "पिनकोड", "label_en": "Pincode", "placeholder_gu": "6 અંકનો પીનકોડ", "placeholder_en": "6-digit pincode", "is_required": True, "sort_order": 11},
+            # Step 3: family_income
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "occupation", "step_section": "family_income", "field_type": "select", "label_gu": "વ્યવસાય / કામધંધો", "label_hi": "व्यवसाय", "label_en": "Occupation", "options_json": [
+                {"value": "agriculture", "label_gu": "ખેતી / પશુપાલન", "label_hi": "कृषि", "label_en": "Farming / Agriculture"},
+                {"value": "labor", "label_gu": "મજૂરી કામ / છૂટક કામ", "label_hi": "मजदूरी", "label_en": "Labor / Daily Wage"},
+                {"value": "private_job", "label_gu": "ખાનગી નોકરી", "label_hi": "निजी नौकरी", "label_en": "Private Job / Salaried"},
+                {"value": "gov_job", "label_gu": "સરકારી નોકરી", "label_hi": "सरकारी नौकरी", "label_en": "Govt Job"},
+                {"value": "business", "label_gu": "વેપાર / ધંધો", "label_hi": "व्यापार", "label_en": "Business / Trade"},
+                {"value": "professional", "label_gu": "પ્રોફેશનલ / સ્વ-રોજગાર", "label_hi": "स्व-रोजगार", "label_en": "Self Employed / Professional"}
+            ], "is_required": True, "sort_order": 12},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "annual_income", "step_section": "family_income", "field_type": "number", "label_gu": "કુલ વાર્ષિક આવક (રૂ.)", "label_hi": "कुल वार्षिक आय (रुपये)", "label_en": "Total Annual Income (INR)", "placeholder_gu": "દા.ત. 120000", "placeholder_en": "e.g. 120000", "is_required": True, "sort_order": 13},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "family_member_count", "step_section": "family_income", "field_type": "number", "label_gu": "કુટુંબના સભ્યોની સંખ્યા", "label_hi": "परिवार के सदस्यों की संख्या", "label_en": "Family Members Count", "placeholder_gu": "દા.ત. 4", "placeholder_en": "e.g. 4", "is_required": True, "sort_order": 14},
+            {"form_id": "f0000000-0000-0000-0000-000000000001", "field_key": "income_purpose", "step_section": "family_income", "field_type": "select", "label_gu": "દાખલાનો હેતુ", "label_hi": "प्रमाण पत्र का उद्देश्य", "label_en": "Purpose of Certificate", "options_json": [
+                {"value": "scholarship", "label_gu": "સ્કોલરશીપ / શિષ્યવૃત્તિ માટે", "label_hi": "छात्रवृत्ति हेतु", "label_en": "Scholarship"},
+                {"value": "rte", "label_gu": "RTE શાળા પ્રવેશ", "label_hi": "आरटीई प्रवेश", "label_en": "RTE Admission"},
+                {"value": "ayushman", "label_gu": "આયુષ્માન ભારત કાર્ડ / માં વાત્સલ્ય", "label_hi": "आयुष्मान भारत", "label_en": "Ayushman Card"},
+                {"value": "ration_card", "label_gu": "રેશન કાર્ડ કૂપન / સહાય", "label_hi": "राशन कार्ड", "label_en": "Ration Card Support"},
+                {"value": "general", "label_gu": "સામાન્ય સરકારી ઉપયોગ", "label_hi": "सामान्य उपयोग", "label_en": "General Govt Purpose"}
+            ], "is_required": True, "sort_order": 15},
+
+            # ════════ FORM 2: EWS CERTIFICATE ════════
+            # Step 1: applicant
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "applicant_name", "step_section": "applicant", "field_type": "text", "label_gu": "અરજદારનું પૂરું નામ", "label_hi": "आवेदक का पूरा नाम", "label_en": "Applicant Full Name", "placeholder_gu": "જેમ આધારમાં છે તેમ", "placeholder_en": "As per Aadhaar", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "caste_subcaste", "step_section": "applicant", "field_type": "text", "label_gu": "જ્ઞાતિ અને પેટા-જ્ઞાતિ (General / Open Category)", "label_hi": "जाति एवं उप-जाति", "label_en": "Caste & Sub-Caste (General Category)", "placeholder_gu": "દા.ત. પટેલ, બ્રાહ્મણ, રાજપૂત, જૈન", "placeholder_en": "e.g. Patel, Brahmin, Rajput, Jain", "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "gender", "step_section": "applicant", "field_type": "select", "label_gu": "જાતિ / લિંગ", "label_hi": "लिंग", "label_en": "Gender", "options_json": gender_opts, "is_required": True, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "dob", "step_section": "applicant", "field_type": "date", "label_gu": "જન્મ તારીખ", "label_hi": "जन्म तिथि", "label_en": "Date of Birth", "is_required": True, "sort_order": 4},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "mobile_number", "step_section": "applicant", "field_type": "number", "label_gu": "મોબાઈલ નંબર", "label_hi": "मोबाइल नंबर", "label_en": "Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "aadhaar_number", "step_section": "applicant", "field_type": "number", "label_gu": "આધાર કાર્ડ નંબર", "label_hi": "आधार कार्ड नंबर", "label_en": "Aadhaar Card Number", "placeholder_gu": "12 અંકનો આધાર", "placeholder_en": "12-digit Aadhaar", "is_required": True, "sort_order": 6},
+            # Step 2: address
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "district", "step_section": "address", "field_type": "select", "label_gu": "જિલ્લો", "label_hi": "जिला", "label_en": "District", "options_json": district_opts, "is_required": True, "sort_order": 7},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "taluka", "step_section": "address", "field_type": "text", "label_gu": "તાલુકો", "label_hi": "तालुका", "label_en": "Taluka", "placeholder_gu": "તાલુકાનું નામ", "placeholder_en": "Taluka name", "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "village_city", "step_section": "address", "field_type": "text", "label_gu": "ગામ / શહેર", "label_hi": "गांव / शहर", "label_en": "Village / City", "placeholder_gu": "ગામ અથવા શહેર", "placeholder_en": "Village or City", "is_required": True, "sort_order": 9},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "residential_address", "step_section": "address", "field_type": "textarea", "label_gu": "રહેઠાણનું સરનામું", "label_hi": "आवासीय पता", "label_en": "Residential Address", "placeholder_gu": "પૂરું સરનામું", "placeholder_en": "Full address", "is_required": True, "sort_order": 10},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "pincode", "step_section": "address", "field_type": "number", "label_gu": "પીનકોડ", "label_hi": "पिनकोड", "label_en": "Pincode", "placeholder_gu": "6 અંકનો પીનકોડ", "placeholder_en": "6-digit pincode", "is_required": True, "sort_order": 11},
+            # Step 3: family_income
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "family_gross_income", "step_section": "family_income", "field_type": "number", "label_gu": "કુટુંબની કુલ વાર્ષિક આવક (રૂ. ૮ લાખથી ઓછી)", "label_hi": "पारिवारिक आय (रुपये)", "label_en": "Family Gross Annual Income (< 8 Lakhs)", "placeholder_gu": "દા.ત. 450000", "placeholder_en": "e.g. 450000", "is_required": True, "sort_order": 12},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "earning_members_count", "step_section": "family_income", "field_type": "number", "label_gu": "કમાતા સભ્યોની સંખ્યા", "label_hi": "कमाने वाले सदस्यों की संख्या", "label_en": "Earning Family Members Count", "placeholder_gu": "દા.ત. 1", "placeholder_en": "e.g. 1", "is_required": True, "sort_order": 13},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "income_source_type", "step_section": "family_income", "field_type": "select", "label_gu": "આવકનો મુખ્ય સ્ત્રોત", "label_hi": "आय का मुख्य स्रोत", "label_en": "Primary Income Source", "options_json": [
+                {"value": "salary", "label_gu": "નોકરી / પગાર (Salary)", "label_hi": "वेतन", "label_en": "Salary / Employment"},
+                {"value": "business", "label_gu": "વેપાર / ધંધો / વ્યવસાય", "label_hi": "व्यापार", "label_en": "Business / Profession"},
+                {"value": "agriculture", "label_gu": "ખેતી / પશુપાલન", "label_hi": "कृषि", "label_en": "Agriculture"},
+                {"value": "combined", "label_gu": "સંયુક્ત સ્ત્રોતો", "label_hi": "संयुक्त स्रोत", "label_en": "Combined Sources"}
+            ], "is_required": True, "sort_order": 14},
+            # Step 4: property_assets
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "agricultural_land_acres", "step_section": "property_assets", "field_type": "number", "label_gu": "ખેતીની જમીન (૫ એકરથી ઓછી હોવી જરૂરી)", "label_hi": "कृषि भूमि (एकड़)", "label_en": "Agricultural Land (< 5 Acres)", "placeholder_gu": "એકરમાં દાખલ કરો (દા.ત. 0 અથવા 2.5)", "placeholder_en": "In acres (e.g. 0 or 2.5)", "is_required": False, "sort_order": 15},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "residential_flat_sqft", "step_section": "property_assets", "field_type": "number", "label_gu": "રહેણાંક ફ્લેટ ક્ષેત્રફળ (૧૦૦૦ ચો.ફૂટથી ઓછું)", "label_hi": "फ्लैट क्षेत्रफल (वर्ग फुट)", "label_en": "Residential Flat Area (< 1000 sq ft)", "placeholder_gu": "ચોરસ ફૂટમાં (દા.ત. 650)", "placeholder_en": "In sq ft (e.g. 650)", "is_required": False, "sort_order": 16},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "residential_plot_sqyards", "step_section": "property_assets", "field_type": "number", "label_gu": "મહાનગરપાલિકામાં પ્લોટ (૧૦૦ ચો.વારથી ઓછો)", "label_hi": "प्लॉट (वर्ग गज)", "label_en": "Residential Plot in Municipality (< 100 sq yards)", "placeholder_gu": "ચોરસ વારમાં (દા.ત. 0)", "placeholder_en": "In sq yards (e.g. 0)", "is_required": False, "sort_order": 17},
+            {"form_id": "f0000000-0000-0000-0000-000000000002", "field_key": "owns_disqualifying_assets", "step_section": "property_assets", "field_type": "select", "label_gu": "શું કુટુંબ પાસે EWS મર્યાદા બહારની કોઈ મિલકત છે?", "label_hi": "क्या कोई अयोग्य संपत्ति है?", "label_en": "Does family own disqualifying assets?", "options_json": [
+                {"value": "no", "label_gu": "ના (કોઈ વધારાની મિલકત નથી)", "label_hi": "नहीं", "label_en": "No (Eligible)"},
+                {"value": "yes", "label_gu": "હા (હાજર છે)", "label_hi": "हाँ", "label_en": "Yes"}
+            ], "is_required": True, "sort_order": 18},
+
+            # ════════ FORM 3: NCL / SEBC CERTIFICATE ════════
+            # Step 1: applicant
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "applicant_name", "step_section": "applicant", "field_type": "text", "label_gu": "અરજદારનું પૂરું નામ", "label_hi": "आवेदक का नाम", "label_en": "Applicant Name", "placeholder_gu": "જેમ શાળા LC માં છે તેમ", "placeholder_en": "As per School LC", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "gender", "step_section": "applicant", "field_type": "select", "label_gu": "જાતિ / લિંગ", "label_hi": "लिंग", "label_en": "Gender", "options_json": gender_opts, "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "dob", "step_section": "applicant", "field_type": "date", "label_gu": "જન્મ તારીખ", "label_hi": "जन्म तिथि", "label_en": "Date of Birth", "is_required": True, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "mobile_number", "step_section": "applicant", "field_type": "number", "label_gu": "મોબાઈલ નંબર", "label_hi": "मोबाइल नंबर", "label_en": "Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 4},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "sebc_caste_name", "step_section": "applicant", "field_type": "select", "label_gu": "SEBC / OBC જ્ઞાતિનું નામ (ગઝટ મુજબ)", "label_hi": "ओबीसी / एसईबीसी जाति", "label_en": "SEBC / OBC Caste Name", "options_json": [
+                {"value": "prajapati", "label_gu": "પ્રજાપતિ / કુંભાર", "label_hi": "प्रजापति", "label_en": "Prajapati / Kumbhar"},
+                {"value": "panchal", "label_gu": "પંચાલ / લુહાર", "label_hi": "पंचाल", "label_en": "Panchal / Luhar"},
+                {"value": "darji", "label_gu": "દરજી", "label_hi": "दर्जी", "label_en": "Darji"},
+                {"value": "suthar", "label_gu": "સુથાર / ગુજ્જર સુથાર", "label_hi": "सुथार", "label_en": "Suthar"},
+                {"value": "koli", "label_gu": "કોળી / ઠાકોર / ચુવાળિયા", "label_hi": "कोली / ठाकोर", "label_en": "Koli / Thakor"},
+                {"value": "bharwad", "label_gu": "ભરવાડ / રબારી / માલધારી", "label_hi": "भरवाड़ / रबारी", "label_en": "Bharwad / Rabari"},
+                {"value": "mochi", "label_gu": "મોચી", "label_hi": "मोची", "label_en": "Mochi"},
+                {"value": "other", "label_gu": "અન્ય ગુજરાત SEBC જ્ઞાતિ", "label_hi": "अन्य", "label_en": "Other Gujarat SEBC Caste"}
+            ], "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "sebc_caste_serial_no", "step_section": "applicant", "field_type": "text", "label_gu": "સરકારી ગેઝેટમાં જ્ઞાતિ ક્રમાંક (જો માલૂમ હોય)", "label_hi": "राजपत्र जाति क्रमांक", "label_en": "Gazette Serial No. (If known)", "placeholder_gu": "દા.ત. 45", "placeholder_en": "e.g. 45", "is_required": False, "sort_order": 6},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "caste_cert_issue_date", "step_section": "applicant", "field_type": "date", "label_gu": "અસલ જાતિ દાખલો મળ્યાની તારીખ", "label_hi": "मूल जाति प्रमाण पत्र निर्गम तिथि", "label_en": "Caste Certificate Issue Date", "is_required": True, "sort_order": 7},
+            # Step 2: address
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "father_name", "step_section": "address", "field_type": "text", "label_gu": "પિતાશ્રીનું પૂરું નામ", "label_hi": "पिता का नाम", "label_en": "Father's Full Name", "placeholder_gu": "પિતાશ્રીનું નામ", "placeholder_en": "Father's name", "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "father_lc_number", "step_section": "address", "field_type": "text", "label_gu": "પિતાશ્રીની શાળા LC નો ક્રમાંક / રજીસ્ટર નં.", "label_hi": "पिता एलसी क्रमांक", "label_en": "Father School LC / Register Number", "placeholder_gu": "દા.ત. LC/1289", "placeholder_en": "e.g. LC/1289", "is_required": True, "sort_order": 9},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "mother_name", "step_section": "address", "field_type": "text", "label_gu": "માતાશ્રીનું નામ", "label_hi": "माता का नाम", "label_en": "Mother's Name", "placeholder_gu": "માતાશ્રીનું નામ", "placeholder_en": "Mother's name", "is_required": True, "sort_order": 10},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "district", "step_section": "address", "field_type": "select", "label_gu": "જિલ્લો", "label_hi": "जिला", "label_en": "District", "options_json": district_opts, "is_required": True, "sort_order": 11},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "taluka", "step_section": "address", "field_type": "text", "label_gu": "તાલુકો", "label_hi": "तालुका", "label_en": "Taluka", "placeholder_gu": "તાલુકાનું નામ", "placeholder_en": "Taluka name", "is_required": True, "sort_order": 12},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "residential_address", "step_section": "address", "field_type": "textarea", "label_gu": "રહેઠાણનું સરનામું", "label_hi": "आवासीय पता", "label_en": "Residential Address", "placeholder_gu": "પૂરું સરનામું", "placeholder_en": "Full address", "is_required": True, "sort_order": 13},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "pincode", "step_section": "address", "field_type": "number", "label_gu": "પીનકોડ", "label_hi": "पिनकोड", "label_en": "Pincode", "placeholder_gu": "6 અંકનો પીનકોડ", "placeholder_en": "6-digit pincode", "is_required": True, "sort_order": 14},
+            # Step 3: three_year_income
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "income_year_1", "step_section": "three_year_income", "field_type": "number", "label_gu": "નાણાકીય વર્ષ ૨૦૨૩-૨૪ ની વાર્ષિક આવક (રૂ.)", "label_hi": "वर्ष 2023-24 आय (रुपये)", "label_en": "FY 2023-24 Income (INR)", "placeholder_gu": "દા.ત. 250000", "placeholder_en": "e.g. 250000", "is_required": True, "sort_order": 15},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "income_year_2", "step_section": "three_year_income", "field_type": "number", "label_gu": "નાણાકીય વર્ષ ૨૦૨૪-૨૫ ની વાર્ષિક આવક (રૂ.)", "label_hi": "वर्ष 2024-25 आय (रुपये)", "label_en": "FY 2024-25 Income (INR)", "placeholder_gu": "દા.ત. 280000", "placeholder_en": "e.g. 280000", "is_required": True, "sort_order": 16},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "income_year_3", "step_section": "three_year_income", "field_type": "number", "label_gu": "નાણાકીય વર્ષ ૨૦૨૫-૨૬ ની વાર્ષિક આવક (રૂ.)", "label_hi": "वर्ष 2025-26 आय (रुपये)", "label_en": "FY 2025-26 Income (INR)", "placeholder_gu": "દા.ત. 310000", "placeholder_en": "e.g. 310000", "is_required": True, "sort_order": 17},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "father_occupation", "step_section": "three_year_income", "field_type": "select", "label_gu": "પિતાશ્રીનો વ્યવસાય", "label_hi": "पिता का व्यवसाय", "label_en": "Father's Occupation", "options_json": [
+                {"value": "agriculture", "label_gu": "ખેતીકામ", "label_hi": "कृषि", "label_en": "Agriculture"},
+                {"value": "private_job", "label_gu": "ખાનગી નોકરી", "label_hi": "निजी नौकरी", "label_en": "Private Employment"},
+                {"value": "gov_job", "label_gu": "સરકારી નોકરી (વર્ગ ૩ અથવા ૪)", "label_hi": "सरकारी सेवा", "label_en": "Govt Job (Class 3/4)"},
+                {"value": "business", "label_gu": "વેપાર / વ્યવસાય", "label_hi": "व्यापार", "label_en": "Business"},
+                {"value": "other", "label_gu": "અન્ય", "label_hi": "अन्य", "label_en": "Other"}
+            ], "is_required": True, "sort_order": 18},
+            {"form_id": "f0000000-0000-0000-0000-000000000003", "field_key": "mother_occupation", "step_section": "three_year_income", "field_type": "select", "label_gu": "માતાશ્રીનો વ્યવસાય", "label_hi": "माता का व्यवसाय", "label_en": "Mother's Occupation", "options_json": [
+                {"value": "homemaker", "label_gu": "ગૃહિણી (Homemaker)", "label_hi": "गृहिणी", "label_en": "Homemaker"},
+                {"value": "agriculture", "label_gu": "ખેતીકામ", "label_hi": "कृषि", "label_en": "Agriculture"},
+                {"value": "service", "label_gu": "નોકરી", "label_hi": "नौकरी", "label_en": "Service"},
+                {"value": "business", "label_gu": "વેપાર", "label_hi": "व्यापार", "label_en": "Business"}
+            ], "is_required": True, "sort_order": 19},
+
+            # ════════ FORM 4: 7/12 & 8-A LAND RECORDS ════════
+            # Step 1: applicant
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "applicant_name", "step_section": "applicant", "field_type": "text", "label_gu": "અરજદાર / ખાતેદારનું નામ", "label_hi": "आवेदक / खातेदार का नाम", "label_en": "Applicant / Landowner Name", "placeholder_gu": "નામ દાખલ કરો", "placeholder_en": "Enter name", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "mobile_number", "step_section": "applicant", "field_type": "number", "label_gu": "મોબાઈલ નંબર (પીડીએફ ડિલિવરી માટે)", "label_hi": "मोबाइल नंबर (व्हाट्सएप/एसएमएस)", "label_en": "Mobile Number for WhatsApp Delivery", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "email_id", "step_section": "applicant", "field_type": "text", "label_gu": "ઈમેલ આઈડી (ડિજિટલ નકલ મોકલવા)", "label_hi": "ईमेल आईडी", "label_en": "Email ID for Digital Copy", "placeholder_gu": "example@email.com", "placeholder_en": "example@email.com", "is_required": False, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "purpose_of_extract", "step_section": "applicant", "field_type": "select", "label_gu": "જમીન રેકોર્ડનો ઉપયોગ હેતુ", "label_hi": "नकल का उपयोग उद्देश्य", "label_en": "Purpose of Land Extract", "options_json": [
+                {"value": "bank_loan", "label_gu": "બેંક લોન / KCC ખેડૂત ક્રેડિટ કાર્ડ", "label_hi": "बैंक ऋण / केसीसी", "label_en": "Bank Loan / KCC"},
+                {"value": "land_sale", "label_gu": "દસ્તાવેજ રજીસ્ટ્રી / જમીન વેચાણ", "label_hi": "दस्तावेज रजिस्ट्री", "label_en": "Land Sale / Registry"},
+                {"value": "agriculture_subsidy", "label_gu": "i-Khedut સરકારી સહાય / સબસિડી", "label_hi": "कृषि सब्सिडी", "label_en": "Agriculture Subsidy"},
+                {"value": "court_legal", "label_gu": "કોર્ટ / કાનૂની કાર્યવાહી", "label_hi": "न्यायालयीन कार्य", "label_en": "Court / Legal"},
+                {"value": "personal", "label_gu": "અંગત રેકોર્ડ / ચકાસણી", "label_hi": "व्यक्तिगत रिकॉर्ड", "label_en": "Personal Record"}
+            ], "is_required": True, "sort_order": 4},
+            # Step 2: land_location
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "district", "step_section": "land_location", "field_type": "select", "label_gu": "મહેસૂલી જિલ્લો", "label_hi": "राजस्व जिला", "label_en": "Revenue District", "options_json": district_opts, "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "taluka", "step_section": "land_location", "field_type": "text", "label_gu": "તાલુકો", "label_hi": "तालुका", "label_en": "Taluka", "placeholder_gu": "તાલુકાનું નામ", "placeholder_en": "Taluka name", "is_required": True, "sort_order": 6},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "village_name", "step_section": "land_location", "field_type": "text", "label_gu": "મહેસૂલી ગામનું નામ", "label_hi": "गांव का नाम", "label_en": "Revenue Village Name", "placeholder_gu": "ગામનું નામ", "placeholder_en": "Village name", "is_required": True, "sort_order": 7},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "record_type", "step_section": "land_location", "field_type": "select", "label_gu": "જમીન રેકોર્ડનો પ્રકાર", "label_hi": "रिकॉर्ड प्रकार", "label_en": "Land Record Type", "options_json": [
+                {"value": "7_12", "label_gu": "૭/૧૨ (ગામ નમૂનો નં. ૭ અને ૧૨)", "label_hi": "7/12 नकल", "label_en": "7/12 Gaam Namuna No. 7 & 12"},
+                {"value": "8A", "label_gu": "૮-અ (ખાતેદારની ખાતાવહી)", "label_hi": "8-अ नकल", "label_en": "8-A Khatedar Khata Copy"},
+                {"value": "VF6", "label_gu": "૬ (હક્ક પત્રક ફેરફાર નોંધ)", "label_hi": "हक पत्रक", "label_en": "VF-6 Hakku Patrak Mutation"},
+                {"value": "all_combined", "label_gu": "તમામ ત્રણેય નકલ (૭/૧૨, ૮-અ અને ૬)", "label_hi": "तीनों नकल", "label_en": "All 3 Extracts Combined"}
+            ], "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "survey_number", "step_section": "land_location", "field_type": "text", "label_gu": "સર્વે નંબર / બ્લોક નંબર", "label_hi": "सर्वे नंबर / ब्लॉक नंबर", "label_en": "Survey Number / Block Number", "placeholder_gu": "દા.ત. 142/1 અથવા 56", "placeholder_en": "e.g. 142/1 or 56", "is_required": True, "sort_order": 9},
+            {"form_id": "f0000000-0000-0000-0000-000000000004", "field_key": "khata_number", "step_section": "land_location", "field_type": "text", "label_gu": "ખાતા નંબર (જો ખબર હોય તો)", "label_hi": "खाता संख्या", "label_en": "Khata Number (If available)", "placeholder_gu": "દા.ત. 89", "placeholder_en": "e.g. 89", "is_required": False, "sort_order": 10},
+
+            # ════════ FORM 5: DRIVING LICENCE ASSISTANCE (SARATHI RTO) ════════
+            # Step 1: applicant
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "applicant_name", "step_section": "applicant", "field_type": "text", "label_gu": "અરજદારનું પૂરું નામ", "label_hi": "आवेदक का पूरा नाम", "label_en": "Applicant Full Name", "placeholder_gu": "જેમ આધારમાં છે તેમ", "placeholder_en": "As per Aadhaar", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "relation_type", "step_section": "applicant", "field_type": "select", "label_gu": "સંબંધ પ્રકાર", "label_hi": "संबंध प्रकार", "label_en": "Relationship Type", "options_json": [
+                {"value": "father", "label_gu": "પિતા (Father)", "label_hi": "पिता", "label_en": "Father"},
+                {"value": "husband", "label_gu": "પતિ (Husband)", "label_hi": "पति", "label_en": "Husband"},
+                {"value": "guardian", "label_gu": "વાલી (Guardian)", "label_hi": "अभिभावक", "label_en": "Guardian"}
+            ], "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "relation_name", "step_section": "applicant", "field_type": "text", "label_gu": "પિતા / પતિનું પૂરું નામ", "label_hi": "पिता / पति का नाम", "label_en": "Father / Husband Full Name", "placeholder_gu": "પૂરું નામ દાખલ કરો", "placeholder_en": "Enter full name", "is_required": True, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "gender", "step_section": "applicant", "field_type": "select", "label_gu": "જાતિ / લિંગ", "label_hi": "लिंग", "label_en": "Gender", "options_json": gender_opts, "is_required": True, "sort_order": 4},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "dob", "step_section": "applicant", "field_type": "date", "label_gu": "જન્મ તારીખ (ઉંમર ૧૮+ વર્ષ)", "label_hi": "जन्म तिथि", "label_en": "Date of Birth (Age 18+ for LMV/MCWG)", "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "blood_group", "step_section": "applicant", "field_type": "select", "label_gu": "બ્લડ ગ્રુપ (રક્ત જૂથ)", "label_hi": "रक्त समूह", "label_en": "Blood Group", "options_json": [
+                {"value": "A_pos", "label_gu": "A+", "label_hi": "A+", "label_en": "A+"},
+                {"value": "A_neg", "label_gu": "A-", "label_hi": "A-", "label_en": "A-"},
+                {"value": "B_pos", "label_gu": "B+", "label_hi": "B+", "label_en": "B+"},
+                {"value": "B_neg", "label_gu": "B-", "label_hi": "B-", "label_en": "B-"},
+                {"value": "O_pos", "label_gu": "O+", "label_hi": "O+", "label_en": "O+"},
+                {"value": "O_neg", "label_gu": "O-", "label_hi": "O-", "label_en": "O-"},
+                {"value": "AB_pos", "label_gu": "AB+", "label_hi": "AB+", "label_en": "AB+"},
+                {"value": "AB_neg", "label_gu": "AB-", "label_hi": "AB-", "label_en": "AB-"},
+                {"value": "unknown", "label_gu": "ખબર નથી (Unknown)", "label_hi": "अज्ञात", "label_en": "Unknown"}
+            ], "is_required": True, "sort_order": 6},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "educational_qualification", "step_section": "applicant", "field_type": "select", "label_gu": "શૈક્ષણિક લાયકાત", "label_hi": "शैक्षणिक योग्यता", "label_en": "Educational Qualification", "options_json": [
+                {"value": "10th_pass", "label_gu": "૧૦ પાસ અથવા વધુ (10th Standard or Higher)", "label_hi": "10वीं उत्तीर्ण या अधिक", "label_en": "10th Standard or Higher"},
+                {"value": "8th_pass", "label_gu": "૮ પાસ (8th Standard Pass)", "label_hi": "8वीं उत्तीर्ण", "label_en": "8th Standard Pass"},
+                {"value": "below_8th", "label_gu": "૮ થી ઓછું (Below 8th)", "label_hi": "8वीं से कम", "label_en": "Below 8th Standard"},
+                {"value": "graduate", "label_gu": "સ્નાતક / અનુસ્નાતક (Graduate / Post Graduate)", "label_hi": "स्नातक", "label_en": "Graduate / Post Graduate"}
+            ], "is_required": True, "sort_order": 7},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "mobile_number", "step_section": "applicant", "field_type": "number", "label_gu": "આધાર લિન્ક્ડ મોબાઈલ નંબર", "label_hi": "आधार लिंक्ड मोबाइल नंबर", "label_en": "Aadhaar Linked Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "aadhaar_number", "step_section": "applicant", "field_type": "number", "label_gu": "આધાર કાર્ડ નંબર", "label_hi": "आधार कार्ड नंबर", "label_en": "Aadhaar Card Number", "placeholder_gu": "12 અંકનો આધાર", "placeholder_en": "12-digit Aadhaar", "is_required": True, "sort_order": 9},
+            # Step 2: address
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "state", "step_section": "address", "field_type": "text", "label_gu": "રાજ્ય", "label_hi": "राज्य", "label_en": "State", "placeholder_gu": "Gujarat", "placeholder_en": "Gujarat", "is_required": True, "sort_order": 10},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "district", "step_section": "address", "field_type": "select", "label_gu": "જિલ્લો", "label_hi": "जिला", "label_en": "District", "options_json": district_opts, "is_required": True, "sort_order": 11},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "taluka", "step_section": "address", "field_type": "text", "label_gu": "તાલુકો", "label_hi": "तालुका", "label_en": "Taluka", "placeholder_gu": "તાલુકાનું નામ", "placeholder_en": "Taluka name", "is_required": True, "sort_order": 12},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "flat_house_street", "step_section": "address", "field_type": "text", "label_gu": "મકાન / ફ્લેટ / સોસાયટી / રસ્તો", "label_hi": "मकान / सड़क", "label_en": "Flat / House / Street Name", "placeholder_gu": "સોસાયટી / ઘર નંબર", "placeholder_en": "House / Society Name", "is_required": True, "sort_order": 13},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "village_city", "step_section": "address", "field_type": "text", "label_gu": "ગામ / શહેર", "label_hi": "गांव / शहर", "label_en": "Village / City", "placeholder_gu": "ગામ અથવા શહેર", "placeholder_en": "Village or City", "is_required": True, "sort_order": 14},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "pincode", "step_section": "address", "field_type": "number", "label_gu": "પીનકોડ", "label_hi": "पिनकोड", "label_en": "Pincode", "placeholder_gu": "6 અંકનો પીનકોડ", "placeholder_en": "6-digit pincode", "is_required": True, "sort_order": 15},
+            # Step 3: licence_service
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "licence_category", "step_section": "licence_service", "field_type": "select", "label_gu": "લાયસન્સ સેવાનો પ્રકાર", "label_hi": "लाइसेंस सेवा का प्रकार", "label_en": "Licence Service Category", "options_json": [
+                {"value": "new_ll", "label_gu": "નવું લર્નર લાયસન્સ (New Learner Licence - LL)", "label_hi": "नया लर्नर लाइसेंस", "label_en": "New Learner Licence (LL)"},
+                {"value": "permanent_dl", "label_gu": "પાકું લાયસન્સ (Permanent Driving Licence - DL)", "label_hi": "स्थाई ड्राइविंग लाइसेंस", "label_en": "Permanent Driving Licence (DL)"},
+                {"value": "renewal", "label_gu": "લાયસન્સ રીન્યુઅલ (DL Renewal)", "label_hi": "लाइसेंस नवीनीकरण", "label_en": "DL Renewal"},
+                {"value": "duplicate", "label_gu": "ડુપ્લિકેટ લાયસન્સ (ખોવાઈ ગયેલ લાયસન્સ)", "label_hi": "डुप्लीकेट लाइसेंस", "label_en": "Duplicate Driving Licence"},
+                {"value": "address_change", "label_gu": "સરનામું ફેરફાર (Address Change in DL)", "label_hi": "पता परिवर्तन", "label_en": "Address Change in DL"}
+            ], "is_required": True, "sort_order": 16},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "vehicle_class", "step_section": "licence_service", "field_type": "select", "label_gu": "વાહન ક્લાસ (Class of Vehicle - COV)", "label_hi": "वाहन श्रेणी", "label_en": "Class of Vehicle (COV)", "options_json": [
+                {"value": "mcwg_and_lmv", "label_gu": "બંને બાઇક અને કાર (MCWG + LMV - Car & Motorcycle)", "label_hi": "बाइक एवं कार दोनों", "label_en": "Both Bike & Car (MCWG + LMV)"},
+                {"value": "mcwg", "label_gu": "ગિયરવાળી મોટરસાઇકલ / બાઇક (MCWG)", "label_hi": "मोटरसाइकिल (MCWG)", "label_en": "Motorcycle with Gear (MCWG)"},
+                {"value": "lmv", "label_gu": "લાઇટ મોટર વ્હીકલ - કાર/જીપ (LMV)", "label_hi": "कार / जीप (LMV)", "label_en": "Light Motor Vehicle (LMV)"},
+                {"value": "mcwog", "label_gu": "ગિયર વગરનું સ્કૂટર 50cc (MCWOG - Activa/Scooter)", "label_hi": "बिना गियर स्कूटर (MCWOG)", "label_en": "Motorcycle without Gear (MCWOG)"}
+            ], "is_required": True, "sort_order": 17},
+            # Step 4: rto_selection
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "rto_office", "step_section": "rto_selection", "field_type": "select", "label_gu": "નજીકની RTO / ARTO કચેરી", "label_hi": "निकटतम आरटीओ कार्यालय", "label_en": "Nearest RTO / ARTO Office", "options_json": [
+                {"value": "GJ-01", "label_gu": "GJ-01: અમદાવાદ (પશ્ચિમ / સુભાષબ્રિજ RTO)", "label_hi": "GJ-01 अहमदाबाद", "label_en": "GJ-01: Ahmedabad West (Subhashbridge RTO)"},
+                {"value": "GJ-27", "label_gu": "GJ-27: અમદાવાદ (પૂર્વ / વસ્ત્રાલ RTO)", "label_hi": "GJ-27 वस्त्राल", "label_en": "GJ-27: Ahmedabad East (Vastral RTO)"},
+                {"value": "GJ-02", "label_gu": "GJ-02: મહેસાણા RTO", "label_hi": "GJ-02 महेसाणा", "label_en": "GJ-02: Mehsana RTO"},
+                {"value": "GJ-03", "label_gu": "GJ-03: રાજકોટ RTO", "label_hi": "GJ-03 राजकोट", "label_en": "GJ-03: Rajkot RTO"},
+                {"value": "GJ-04", "label_gu": "GJ-04: ભાવનગર RTO", "label_hi": "GJ-04 भावनगर", "label_en": "GJ-04: Bhavnagar RTO"},
+                {"value": "GJ-05", "label_gu": "GJ-05: સુરત RTO", "label_hi": "GJ-05 सूरत", "label_en": "GJ-05: Surat RTO"},
+                {"value": "GJ-06", "label_gu": "GJ-06: વડોદરા RTO", "label_hi": "GJ-06 वडोदरा", "label_en": "GJ-06: Vadodara RTO"},
+                {"value": "GJ-18", "label_gu": "GJ-18: ગાંધીનગર RTO", "label_hi": "GJ-18 गांधीनगर", "label_en": "GJ-18: Gandhinagar RTO"},
+                {"value": "GJ-23", "label_gu": "GJ-23: આણંદ RTO", "label_hi": "GJ-23 आणंद", "label_en": "GJ-23: Anand RTO"},
+                {"value": "GJ-12", "label_gu": "GJ-12: ભુજ / કચ્છ RTO", "label_hi": "GJ-12 भुज", "label_en": "GJ-12: Bhuj / Kutch RTO"}
+            ], "is_required": True, "sort_order": 18},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "test_language_preference", "step_section": "rto_selection", "field_type": "select", "label_gu": "ઓનલાઇન કમ્પ્યુટર પરીક્ષાની ભાષા", "label_hi": "ऑनलाइन परीक्षा की भाषा", "label_en": "Online Computer Theory Test Language", "options_json": [
+                {"value": "gujarati", "label_gu": "ગુજરાતી (Gujarati)", "label_hi": "गुजराती", "label_en": "Gujarati"},
+                {"value": "english", "label_gu": "અંગ્રેજી (English)", "label_hi": "अंग्रेजी", "label_en": "English"},
+                {"value": "hindi", "label_gu": "હિન્દી (Hindi)", "label_hi": "हिंदी", "label_en": "Hindi"}
+            ], "is_required": True, "sort_order": 19},
+            {"form_id": "f0000000-0000-0000-0000-000000000005", "field_key": "test_mode", "step_section": "rto_selection", "field_type": "select", "label_gu": "પરીક્ષા મોડ (ફેસલેસ હોમ ટેસ્ટ / RTO રૂબરૂ)", "label_hi": "परीक्षा मोड", "label_en": "Test Mode", "options_json": [
+                {"value": "home_faceless", "label_gu": "ઘરે બેઠા ઓનલાઈન LL પરીક્ષા (Aadhaar Faceless Contactless Test)", "label_hi": "घर बैठे ऑनलाइन परीक्षा", "label_en": "Contactless Home Online Test via Aadhaar"},
+                {"value": "rto_physical", "label_gu": "RTO કચેરી ખાતે રૂબરૂ કમ્પ્યુટર પરીક્ષા", "label_hi": "आरटीओ कार्यालय में परीक्षा", "label_en": "Physical Test at RTO Office"}
+            ], "is_required": True, "sort_order": 20},
+
+            # ════════ FORM 6: NEET UG MEDICAL ENTRANCE EXAM 2026 ════════
+            # Step 1: candidate
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "candidate_name", "step_section": "candidate", "field_type": "text", "label_gu": "ઉમેદવારનું પૂરું નામ (૧૦મી માર્કશીટ મુજબ)", "label_hi": "उम्मीदवार का नाम (10वीं के अनुसार)", "label_en": "Candidate Full Name (As per 10th marksheet)", "placeholder_gu": "જેમ ૧૦મીની માર્કશીટમાં છે તેમ", "placeholder_en": "As per Class 10 marksheet", "is_required": True, "sort_order": 1},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "father_name", "step_section": "candidate", "field_type": "text", "label_gu": "પિતાશ્રીનું નામ", "label_hi": "पिता का नाम", "label_en": "Father's Name", "placeholder_gu": "પિતાશ્રીનું નામ", "placeholder_en": "Father's name", "is_required": True, "sort_order": 2},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "mother_name", "step_section": "candidate", "field_type": "text", "label_gu": "માતાશ્રીનું નામ", "label_hi": "माता का नाम", "label_en": "Mother's Name", "placeholder_gu": "માતાશ્રીનું નામ", "placeholder_en": "Mother's name", "is_required": True, "sort_order": 3},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "dob", "step_section": "candidate", "field_type": "date", "label_gu": "જન્મ તારીખ", "label_hi": "जन्म तिथि", "label_en": "Date of Birth", "is_required": True, "sort_order": 4},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "gender", "step_section": "candidate", "field_type": "select", "label_gu": "લિંગ / Gender", "label_hi": "लिंग", "label_en": "Gender", "options_json": [
+                {"value": "female", "label_gu": "સ્ત્રી (Female)", "label_hi": "महिला", "label_en": "Female"},
+                {"value": "male", "label_gu": "પુરુષ (Male)", "label_hi": "पुरुष", "label_en": "Male"},
+                {"value": "third_gender", "label_gu": "તૃતીય પંથી (Third Gender)", "label_hi": "तृतीय पंथी", "label_en": "Third Gender"}
+            ], "is_required": True, "sort_order": 5},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "nationality", "step_section": "candidate", "field_type": "select", "label_gu": "રાષ્ટ્રીયતા (Nationality)", "label_hi": "राष्ट्रीयता", "label_en": "Nationality", "options_json": [
+                {"value": "indian", "label_gu": "ભારતીય (Indian)", "label_hi": "भारतीय", "label_en": "Indian"},
+                {"value": "nri", "label_gu": "NRI", "label_hi": "एनआरआई", "label_en": "Non-Resident Indian (NRI)"},
+                {"value": "oci", "label_gu": "OCI", "label_hi": "ओसीआई", "label_en": "Overseas Citizen of India (OCI)"},
+                {"value": "foreign", "label_gu": "વિદેશી નાગરિક (Foreign National)", "label_hi": "विदेशी नागरिक", "label_en": "Foreign National"}
+            ], "is_required": True, "sort_order": 6},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "identity_type", "step_section": "candidate", "field_type": "select", "label_gu": "ઓળખ પુરાવાનો પ્રકાર", "label_hi": "पहचान प्रमाण प्रकार", "label_en": "Identity Proof Type", "options_json": [
+                {"value": "aadhaar", "label_gu": "આધાર કાર્ડ (Aadhaar Card with Photo)", "label_hi": "आधार कार्ड", "label_en": "Aadhaar Card"},
+                {"value": "passport", "label_gu": "પાસપોર્ટ (Passport)", "label_hi": "पासपोर्ट", "label_en": "Passport"},
+                {"value": "admit_card", "label_gu": "ધોરણ ૧૨ એડમિટ કાર્ડ (Class 12 Admit Card)", "label_hi": "12वीं प्रवेश पत्र", "label_en": "Class 12 Admit Card with Photo"},
+                {"value": "election_card", "label_gu": "ચૂંટણી કાર્ડ (Voter ID Card)", "label_hi": "मतदाता पहचान पत्र", "label_en": "Voter ID Card"}
+            ], "is_required": True, "sort_order": 7},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "id_number", "step_section": "candidate", "field_type": "text", "label_gu": "ઓળખ પુરાવાનો નંબર", "label_hi": "पहचान प्रमाण संख्या", "label_en": "Identity Proof Number", "placeholder_gu": "નંબર દાખલ કરો", "placeholder_en": "Enter document number", "is_required": True, "sort_order": 8},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "category", "step_section": "candidate", "field_type": "select", "label_gu": "કેટેગરી / અનામત વર્ગ", "label_hi": "वर्ग / श्रेणी", "label_en": "Category", "options_json": [
+                {"value": "general", "label_gu": "સામાન્ય (General / Unreserved)", "label_hi": "सामान्य (General)", "label_en": "General"},
+                {"value": "gen_ews", "label_gu": "જનરલ - EWS (General-EWS)", "label_hi": "जनरल - EWS", "label_en": "General-EWS"},
+                {"value": "obc_ncl", "label_gu": "OBC - NCL (સેન્ટ્રલ લિસ્ટ મુજબ નોન-ક્રીમીલેયર)", "label_hi": "OBC - NCL (केंद्रीय सूची)", "label_en": "OBC-NCL (Central List)"},
+                {"value": "sc", "label_gu": "અનુસૂચિત જાતિ (SC)", "label_hi": "अनुसूचित जाति (SC)", "label_en": "SC"},
+                {"value": "st", "label_gu": "અનુસૂચિત જનજાતિ (ST)", "label_hi": "अनुसूचित जनजाति (ST)", "label_en": "ST"}
+            ], "is_required": True, "sort_order": 9},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "pwd_status", "step_section": "candidate", "field_type": "select", "label_gu": "દિવ્યાંગ / PwBD ઉમેદવાર છે?", "label_hi": "क्या दिव्यांग (PwBD) उम्मीदवार हैं?", "label_en": "PwBD (Divyang) Status", "options_json": [
+                {"value": "no", "label_gu": "ના (No)", "label_hi": "नहीं", "label_en": "No"},
+                {"value": "yes", "label_gu": "હા (Yes - Benchmark Disability 40%+)", "label_hi": "हाँ", "label_en": "Yes (PwBD 40%+)"}
+            ], "is_required": True, "sort_order": 10},
+            # Step 2: address
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "country", "step_section": "address", "field_type": "text", "label_gu": "દેશ", "label_hi": "देश", "label_en": "Country", "placeholder_gu": "India", "placeholder_en": "India", "is_required": True, "sort_order": 11},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "state", "step_section": "address", "field_type": "text", "label_gu": "રાજ્ય", "label_hi": "राज्य", "label_en": "State", "placeholder_gu": "Gujarat", "placeholder_en": "Gujarat", "is_required": True, "sort_order": 12},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "district", "step_section": "address", "field_type": "select", "label_gu": "જિલ્લો", "label_hi": "जिला", "label_en": "District", "options_json": district_opts, "is_required": True, "sort_order": 13},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "full_address", "step_section": "address", "field_type": "textarea", "label_gu": "કાયમી તથા વર્તમાન સરનામું", "label_hi": "स्थाई एवं वर्तमान पता", "label_en": "Full Permanent & Present Address", "placeholder_gu": "ઘર નંબર, સોસાયટી, વિસ્તાર", "placeholder_en": "House no, society, area", "is_required": True, "sort_order": 14},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "pincode", "step_section": "address", "field_type": "number", "label_gu": "પીનકોડ", "label_hi": "पिनकोड", "label_en": "Pincode", "placeholder_gu": "6 અંકનો પીનકોડ", "placeholder_en": "6-digit pincode", "is_required": True, "sort_order": 15},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "email", "step_section": "address", "field_type": "text", "label_gu": "ઉમેદવારનું ઈમેલ આઈડી (NTA એડમિટ કાર્ડ માટે)", "label_hi": "उम्मीदवार का ईमेल", "label_en": "Candidate Email ID for NTA Updates", "placeholder_gu": "student@gmail.com", "placeholder_en": "student@gmail.com", "is_required": True, "sort_order": 16},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "mobile_number", "step_section": "address", "field_type": "number", "label_gu": "ઉમેદવારનો મોબાઈલ નંબર", "label_hi": "उम्मीदवार मोबाइल નંબર", "label_en": "Candidate Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 17},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "emergency_mobile", "step_section": "address", "field_type": "number", "label_gu": "વાલી / પિતાશ્રીનો વૈકલ્પિક મોબાઈલ", "label_hi": "अभिभावक मोबाइल નંબર", "label_en": "Alternate / Parents' Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 18},
+            # Step 3: academic
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_10_pass_status", "step_section": "academic", "field_type": "select", "label_gu": "૧૦મું ધોરણ પાસિંગ સ્થિતિ", "label_hi": "10वीं उत्तीर्ण स्थिति", "label_en": "Class 10 Pass Status", "options_json": [
+                {"value": "passed", "label_gu": "પાસ (Passed)", "label_hi": "उत्तीर्ण", "label_en": "Passed"}
+            ], "is_required": True, "sort_order": 19},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_10_board", "step_section": "academic", "field_type": "select", "label_gu": "ધોરણ ૧૦ બોર્ડનું નામ", "label_hi": "10वीं बोर्ड का नाम", "label_en": "Class 10 Education Board", "options_json": [
+                {"value": "gseb", "label_gu": "GSEB - ગુજરાત માધ્યમિક શિક્ષણ બોર્ડ", "label_hi": "GSEB गुजरात बोर्ड", "label_en": "GSEB (Gujarat Secondary Board)"},
+                {"value": "cbse", "label_gu": "CBSE - સેન્ટ્રલ બોર્ડ", "label_hi": "CBSE बोर्ड", "label_en": "CBSE"},
+                {"value": "icse", "label_gu": "ICSE / CISCE", "label_hi": "ICSE", "label_en": "ICSE / CISCE"},
+                {"value": "other", "label_gu": "અન્ય રાજ્ય બોર્ડ (Other State Board)", "label_hi": "अन्य राज्य बोर्ड", "label_en": "Other State Board"}
+            ], "is_required": True, "sort_order": 20},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_10_school_name", "step_section": "academic", "field_type": "text", "label_gu": "૧૦મી શાળાનું નામ અને શહેર", "label_hi": "10वीं स्कूल का नाम", "label_en": "Class 10 School Name & City", "placeholder_gu": "શાળાનું નામ", "placeholder_en": "School name", "is_required": True, "sort_order": 21},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_10_roll_number", "step_section": "academic", "field_type": "text", "label_gu": "ધોરણ ૧૦ રોલ / બેઠક નંબર", "label_hi": "10वीं अनुक्रमांक", "label_en": "Class 10 Roll / Seat Number", "placeholder_gu": "દા.ત. B142589", "placeholder_en": "e.g. B142589", "is_required": True, "sort_order": 22},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_10_percentage", "step_section": "academic", "field_type": "number", "label_gu": "ધોરણ ૧૦ ટકાવારી / પર્સન્ટાઈલ", "label_hi": "10वीं प्रतिशत", "label_en": "Class 10 Percentage / CGPA", "placeholder_gu": "દા.ત. 85.50", "placeholder_en": "e.g. 85.50", "is_required": True, "sort_order": 23},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_12_pass_status", "step_section": "academic", "field_type": "select", "label_gu": "૧૨મું સાયન્સ (PCB) સ્થિતિ", "label_hi": "12वीं विज्ञान स्थिति", "label_en": "Class 12 (PCB) Status", "options_json": [
+                {"value": "appearing", "label_gu": "૨૦૨૬ માં પરીક્ષા આપી રહેલ છે (Appearing in 2026)", "label_hi": "2026 में सम्मिलित", "label_en": "Appearing in 2026"},
+                {"value": "passed", "label_gu": "૧૨મું પાસ થઈ ગયેલ છે (Passed)", "label_hi": "उत्तीर्ण", "label_en": "Passed"}
+            ], "is_required": True, "sort_order": 24},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_12_board", "step_section": "academic", "field_type": "select", "label_gu": "ધોરણ ૧૨ બોર્ડનું નામ", "label_hi": "12वीं बोर्ड का नाम", "label_en": "Class 12 Education Board", "options_json": [
+                {"value": "gseb", "label_gu": "GSEB - ગુજરાત ઉચ્ચતર માધ્યમિક બોર્ડ", "label_hi": "GSEB गुजरात बोर्ड", "label_en": "GSEB (Gujarat Higher Secondary)"},
+                {"value": "cbse", "label_gu": "CBSE - સેન્ટ્રલ બોર્ડ", "label_hi": "CBSE बोर्ड", "label_en": "CBSE"},
+                {"value": "icse", "label_gu": "ISC / CISCE", "label_hi": "ISC", "label_en": "ISC / CISCE"},
+                {"value": "nios", "label_gu": "NIOS ઓપન સ્કૂલ", "label_hi": "NIOS", "label_en": "NIOS Open School"},
+                {"value": "other", "label_gu": "અન્ય રાજ્ય બોર્ડ", "label_hi": "अन्य", "label_en": "Other State Board"}
+            ], "is_required": True, "sort_order": 25},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_12_school_name", "step_section": "academic", "field_type": "text", "label_gu": "૧૨મી શાળા / જુનિયર કોલેજનું નામ", "label_hi": "12वीं स्कूल / कॉलेज", "label_en": "Class 12 School / College Name", "placeholder_gu": "શાળાનું નામ", "placeholder_en": "School name", "is_required": True, "sort_order": 26},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "class_12_roll_number", "step_section": "academic", "field_type": "text", "label_gu": "૧૨મી બેઠક નંબર (જો મળ્યો હોય તો)", "label_hi": "12वीं अनुक्रमांक", "label_en": "Class 12 Roll Number (If available)", "placeholder_gu": "દા.ત. C985412", "placeholder_en": "e.g. C985412", "is_required": False, "sort_order": 27},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "physics_marks", "step_section": "academic", "field_type": "number", "label_gu": "ભૌતિક વિજ્ઞાન (Physics) ગુણ / અપેક્ષિત", "label_hi": "भौतिकी अंक", "label_en": "Physics Marks", "placeholder_gu": "દા.ત. 82", "placeholder_en": "e.g. 82", "is_required": False, "sort_order": 28},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "chemistry_marks", "step_section": "academic", "field_type": "number", "label_gu": "રસાયણ વિજ્ઞાન (Chemistry) ગુણ / અપેક્ષિત", "label_hi": "रसायन विज्ञान अंक", "label_en": "Chemistry Marks", "placeholder_gu": "દા.ત. 88", "placeholder_en": "e.g. 88", "is_required": False, "sort_order": 29},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "biology_marks", "step_section": "academic", "field_type": "number", "label_gu": "જીવ વિજ્ઞાન (Biology / Biotech) ગુણ", "label_hi": "जीव विज्ञान अंक", "label_en": "Biology / Biotechnology Marks", "placeholder_gu": "દા.ત. 94", "placeholder_en": "e.g. 94", "is_required": False, "sort_order": 30},
+            # Step 4: exam_details
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "exam_medium", "step_section": "exam_details", "field_type": "select", "label_gu": "પ્રશ્નપત્રનું માધ્યમ (Question Paper Medium)", "label_hi": "परीक्षा का माध्यम", "label_en": "Question Paper Medium", "options_json": [
+                {"value": "gujarati", "label_gu": "ગુજરાતી અને અંગ્રેજી દ્વિભાષી બુકલેટ (Gujarati & English Bilingual)", "label_hi": "गुजराती एवं अंग्रेजी", "label_en": "Gujarati & English Bilingual Booklet"},
+                {"value": "english", "label_gu": "માત્ર અંગ્રેજી (English Only)", "label_hi": "केवल अंग्रेजी", "label_en": "English Only"},
+                {"value": "hindi", "label_gu": "હિન્દી અને અંગ્રેજી દ્વિભાષી બુકલેટ (Hindi & English Bilingual)", "label_hi": "हिंदी एवं अंग्रेजी", "label_en": "Hindi & English Bilingual Booklet"}
+            ], "is_required": True, "sort_order": 31},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "exam_state_choice_1", "step_section": "exam_details", "field_type": "text", "label_gu": "પ્રથમ પસંદગી રાજ્ય", "label_hi": "प्रथम पसंद राज्य", "label_en": "1st Choice Exam State", "placeholder_gu": "Gujarat", "placeholder_en": "Gujarat", "is_required": True, "sort_order": 32},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "exam_city_choice_1", "step_section": "exam_details", "field_type": "select", "label_gu": "પ્રથમ પસંદગીનું પરીક્ષા કેન્દ્ર શહેર (NTA Exam City 1)", "label_hi": "प्रथम परीक्षा केंद्र पसंद", "label_en": "1st Choice Examination City", "options_json": [
+                {"value": "Ahmedabad", "label_gu": "અમદાવાદ / ગાંધીનગર", "label_hi": "अहमदाबाद", "label_en": "Ahmedabad / Gandhinagar"},
+                {"value": "Surat", "label_gu": "સુરત", "label_hi": "सूरत", "label_en": "Surat"},
+                {"value": "Vadodara", "label_gu": "વડોદરા", "label_hi": "वडोदरा", "label_en": "Vadodara"},
+                {"value": "Rajkot", "label_gu": "રાજકોટ", "label_hi": "राजकोट", "label_en": "Rajkot"},
+                {"value": "Bhavnagar", "label_gu": "ભાવનગર", "label_hi": "भावनगर", "label_en": "Bhavnagar"},
+                {"value": "Anand", "label_gu": "આણંદ / વલ્લભ વિદ્યાનગર", "label_hi": "आणंद", "label_en": "Anand / VVNagar"},
+                {"value": "Mehsana", "label_gu": "મહેસાણા", "label_hi": "महेसाणा", "label_en": "Mehsana"},
+                {"value": "Bhuj", "label_gu": "ભુજ / કચ્છ", "label_hi": "भुज", "label_en": "Bhuj / Kutch"},
+                {"value": "Jamnagar", "label_gu": "જામનગર", "label_hi": "जामनगर", "label_en": "Jamnagar"},
+                {"value": "Vapi", "label_gu": "વાપી / વલસાડ", "label_hi": "वापी", "label_en": "Vapi / Valsad"},
+                {"value": "Himatnagar", "label_gu": "હિંમતનગર (સાબરકાંઠા)", "label_hi": "हिम्मतनगर", "label_en": "Himatnagar"}
+            ], "is_required": True, "sort_order": 33},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "exam_state_choice_2", "step_section": "exam_details", "field_type": "text", "label_gu": "દ્વિતીય પસંદગી રાજ્ય", "label_hi": "द्वितीय पसंद राज्य", "label_en": "2nd Choice Exam State", "placeholder_gu": "Gujarat", "placeholder_en": "Gujarat", "is_required": True, "sort_order": 34},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "exam_city_choice_2", "step_section": "exam_details", "field_type": "select", "label_gu": "બીજી પસંદગીનું પરીક્ષા કેન્દ્ર શહેર (NTA Exam City 2)", "label_hi": "द्वितीय परीक्षा केंद्र पसंद", "label_en": "2nd Choice Examination City", "options_json": [
+                {"value": "Surat", "label_gu": "સુરત", "label_hi": "सूरत", "label_en": "Surat"},
+                {"value": "Ahmedabad", "label_gu": "અમદાવાદ / ગાંધીનગર", "label_hi": "अहमदाबाद", "label_en": "Ahmedabad"},
+                {"value": "Vadodara", "label_gu": "વડોદરા", "label_hi": "वडोदरा", "label_en": "Vadodara"},
+                {"value": "Rajkot", "label_gu": "રાજકોટ", "label_hi": "राजकोट", "label_en": "Rajkot"},
+                {"value": "Bhavnagar", "label_gu": "ભાવનગર", "label_hi": "भावनगर", "label_en": "Bhavnagar"},
+                {"value": "Gandhinagar", "label_gu": "ગાંધીનગર", "label_hi": "गांधीनगर", "label_en": "Gandhinagar"}
+            ], "is_required": True, "sort_order": 35},
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "dress_code_customary", "step_section": "exam_details", "field_type": "select", "label_gu": "પરંપરાગત / ધાર્મિક પોશાક પહેરવાનો ઇરાદો છે?", "label_hi": "क्या पारंपरिक पोशाक पहनने का इरादा है?", "label_en": "Intend to wear Customary / Religious Dress?", "options_json": [
+                {"value": "no", "label_gu": "ના (સામાન્ય NEET ડ્રેસ કોડ)", "label_hi": "नहीं (मानक ड्रेस कोड)", "label_en": "No (Standard NTA Dress Code)"},
+                {"value": "yes", "label_gu": "હા (પરંપરાગત પોશાક - વહેલા રિપોર્ટિંગ જરૂરી)", "label_hi": "हाँ (पारंपरिक पोशाक)", "label_en": "Yes (Customary Dress - Early Reporting)"}
+            ], "is_required": True, "sort_order": 36}
+        ]
+
+        for fld in fields_master:
+            fid = str(uuid.uuid4())
+            self.form_fields[fid] = {
+                "id": fid,
+                **fld,
+                "created_at": datetime.now(timezone.utc)
+            }
+
+        # 9. Document Requirements Engine (Matrix with Mandatory, Conditional, and Supporting rules)
         service_docs_data = [
             # Form 1: Income Certificate
             {

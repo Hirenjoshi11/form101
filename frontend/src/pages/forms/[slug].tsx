@@ -326,7 +326,26 @@ export default function FormDetailPage() {
   );
 
   const totalFee = form.official_fee + form.service_fee;
-  const currentStepFields = (form.fields || []).filter(f => f.step_section === activeStepKey);
+
+  const getFieldsForStep = (stepKey: string) => {
+    if (!form?.fields) return [];
+    // 1. Direct match with step_section
+    const directMatches = form.fields.filter(f => f.step_section === stepKey);
+    if (directMatches.length > 0) return directMatches;
+
+    // 2. Legacy/Alias Fallback support
+    if (stepKey === 'applicant' || stepKey === 'candidate') {
+      const aliasMatches = form.fields.filter(f => f.step_section === 'personal' || f.step_section === stepKey);
+      if (aliasMatches.length > 0) return aliasMatches;
+    }
+    if (['family_income', 'three_year_income', 'property_assets', 'land_location', 'licence_service', 'rto_selection', 'academic', 'exam_details'].includes(stepKey)) {
+      const legacyMatches = form.fields.filter(f => f.step_section === stepKey || f.step_section === 'specific');
+      if (legacyMatches.length > 0) return legacyMatches;
+    }
+    return directMatches;
+  };
+
+  const currentStepFields = getFieldsForStep(activeStepKey);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -556,7 +575,7 @@ export default function FormDetailPage() {
 
                   {/* Section summaries with Edit jumps */}
                   {stepsList.filter(s => s.key !== 'review' && s.key !== 'documents').map((s) => {
-                    const sFields = (form.fields || []).filter(f => f.step_section === s.key);
+                    const sFields = getFieldsForStep(s.key);
                     const filledFields = sFields.filter(f => fieldValues[f.field_key] !== undefined && fieldValues[f.field_key] !== '');
                     if (filledFields.length === 0) return null;
 
