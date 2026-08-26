@@ -29,9 +29,10 @@ export default function DocumentsRequirementsPage() {
     const loadAllForms = async () => {
       try {
         const data = await ApiService.getForms();
-        setForms(data);
-        if (data.length > 0) {
-          const initial = service ? data.find(f => f.slug === service || f.id === service) || data[0] : data[0];
+        const activeForms = data.filter(f => f.is_active !== false);
+        setForms(activeForms);
+        if (activeForms.length > 0) {
+          const initial = service ? activeForms.find(f => f.slug === service || f.id === service) || activeForms[0] : activeForms[0];
           setSelectedForm(initial);
           if (initial.service_documents && initial.service_documents.length > 0) {
             setDocuments(initial.service_documents);

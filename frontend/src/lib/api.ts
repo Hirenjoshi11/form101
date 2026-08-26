@@ -301,6 +301,37 @@ export class ApiService {
     return form;
   }
 
+  static async toggleFormActive(formId: string): Promise<CertificateForm | null> {
+    const forms = await this.getForms();
+    let updatedForm: CertificateForm | null = null;
+    const updated = forms.map(f => {
+      if (f.id === formId || f.slug === formId) {
+        const nextState = f.is_active === false ? true : false;
+        updatedForm = { ...f, is_active: nextState };
+        return updatedForm;
+      }
+      return f;
+    });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('formseva_custom_forms_v6', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${formId}/toggle-active`, {
+        method: 'PATCH',
+        headers: this.getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (e) {}
+
+    return updatedForm;
+  }
+
   static async deleteForm(formId: string): Promise<boolean> {
     const forms = await this.getForms();
     const updated = forms.filter(f => f.id !== formId && f.slug !== formId);
@@ -309,7 +340,7 @@ export class ApiService {
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
     try {
-      await fetch(`${API_BASE_URL}/admin/forms/${formId}`, {
+      await fetch(`${API_BASE_URL}/forms/${formId}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       });

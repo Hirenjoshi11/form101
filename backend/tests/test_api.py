@@ -282,3 +282,33 @@ def test_operator_form_eligibility_and_security():
     assert g_data["user"]["role"] == "citizen"
     assert g_data["user"]["phone"] == "9825099887"
 
+def test_admin_toggle_form_active_status():
+    """Verify that toggling form active status hides/shows it from public listing without deleting the form."""
+    admin_token = client.post("/api/v1/auth/login", json={
+        "email": "admin@formseva.gujarat.gov.in",
+        "role": "admin"
+    }).json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # 1. Initially all forms are listed
+    initial_forms = client.get("/api/v1/forms").json()
+    assert any(f["slug"] == "income_certificate" for f in initial_forms)
+    
+    # 2. Toggle income_certificate to INACTIVE (turned OFF)
+    toggle_res = client.patch("/api/v1/forms/income_certificate/toggle-active", headers=admin_headers)
+    assert toggle_res.status_code == 200
+    assert toggle_res.json()["is_active"] is False
+    
+    # 3. Public active_only forms list should now HIDE income_certificate
+    public_forms = client.get("/api/v1/forms?active_only=true").json()
+    assert not any(f["slug"] == "income_certificate" for f in public_forms)
+    
+    # 4. Toggle back to ACTIVE (turned ON)
+    toggle_back = client.patch("/api/v1/forms/income_certificate/toggle-active", headers=admin_headers)
+    assert toggle_back.status_code == 200
+    assert toggle_back.json()["is_active"] is True
+    
+    # 5. Public forms list now includes income_certificate again
+    restored_forms = client.get("/api/v1/forms?active_only=true").json()
+    assert any(f["slug"] == "income_certificate" for f in restored_forms)
+

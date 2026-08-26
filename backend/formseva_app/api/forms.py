@@ -182,6 +182,61 @@ def create_form_field(form_id: str, payload: FormFieldBase):
     
     return FormFieldResponse(**field_data)
 
+@router.patch("/{form_id}/toggle-active", response_model=FormResponse, dependencies=[Depends(require_role(["admin"]))])
+def toggle_form_active(form_id: str):
+    """Admin endpoint to toggle active/inactive status (show/hide form for citizens)."""
+    form = db.forms.get(form_id)
+    if not form:
+        form = next((f for f in db.forms.values() if f.get("slug") == form_id or f.get("id") == form_id), None)
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    
+    old_state = dict(form)
+    form["is_active"] = not form.get("is_active", True)
+    form["updated_at"] = datetime.now(timezone.utc)
+    
+    db.audit_logs.append({
+        "id": str(uuid.uuid4()),
+        "actor_role": "admin",
+        "action": "TOGGLE_FORM_ACTIVE",
+        "entity_type": "forms",
+        "entity_id": form["id"],
+        "old_state": old_state,
+        "new_state": form,
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    fields = [field for field in db.form_fields.values() if field["form_id"] == form["id"]]
+    fields.sort(key=lambda x: x.get("sort_order", 0))
+    steps = [step for step in db.service_steps.values() if step["form_id"] == form["id"]]
+    steps.sort(key=lambda x: x.get("step_number", 0))
+    docs = [doc for doc in db.service_documents.values() if doc["form_id"] == form["id"] and doc.get("is_active", True)]
+    docs.sort(key=lambda x: x.get("sort_order", 0))
+    
+    return FormResponse(**form, fields=fields, steps=steps, service_documents=docs)
+
+@router.delete("/{form_id}", dependencies=[Depends(require_role(["admin"]))])
+def delete_form(form_id: str):
+    """Admin endpoint to permanently delete a form."""
+    form = db.forms.pop(form_id, None)
+    if not form:
+        form_key = next((k for k, v in db.forms.items() if v.get("slug") == form_id or v.get("id") == form_id), None)
+        if form_key:
+            form = db.forms.pop(form_key, None)
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    
+    db.audit_logs.append({
+        "id": str(uuid.uuid4()),
+        "actor_role": "admin",
+        "action": "DELETE_FORM",
+        "entity_type": "forms",
+        "entity_id": form["id"],
+        "old_state": form,
+        "created_at": datetime.now(timezone.utc)
+    })
+    return {"message": "Form deleted successfully"}
+
 @router.delete("/fields/{field_id}", dependencies=[Depends(require_role(["admin"]))])
 def delete_form_field(field_id: str):
     """Admin endpoint to remove a dynamic field."""

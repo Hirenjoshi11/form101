@@ -381,13 +381,58 @@ export default function FormDetailPage() {
         <h1 className="text-xl font-bold text-slate-800">Form Not Found</h1>
         <button
           onClick={() => router.push('/#services-catalog')}
-          className="px-4 py-2 bg-[#159447] text-white text-xs font-bold rounded-xl"
+          className="px-4 py-2 bg-[#159447] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#12803c] transition"
         >
           Return to Services
         </button>
       </div>
     </div>
   );
+
+  if (form.is_active === false) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <Head>
+          <title>{getTitle(form)} — Service Temporarily Paused</title>
+        </Head>
+        <Navbar />
+        <main className="flex-1 max-w-xl mx-auto px-4 py-16 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-5 shadow-xs">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-black text-[#18232D]">
+            {language === 'gu'
+              ? 'આ સેવા હાલમાં નાગરિકો માટે બંધ છે'
+              : language === 'hi'
+              ? 'यह सेवा वर्तमान में नागरिकों के लिए बंद है'
+              : 'This Service is Currently Paused'}
+          </h1>
+          <p className="text-sm text-[#5B6470] mt-2 max-w-md">
+            {language === 'gu'
+              ? `${form.title_gu} માટે નવી અરજીઓ એડમિનિસ્ટ્રેટર દ્વારા કામચલાઉ ધોરણે સ્થગિત કરવામાં આવી છે.`
+              : language === 'hi'
+              ? `${form.title_hi} हेतु नए आवेदन अस्थायी रूप से व्यवस्थापक द्वारा रोके गए हैं।`
+              : `New applications for "${form.title_en}" have been temporarily paused by administrator.`}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => router.push('/#services-catalog')}
+              className="px-5 py-2.5 rounded-xl bg-[#159447] text-white font-bold text-xs shadow-sm hover:bg-[#12803c] transition"
+            >
+              {language === 'gu' ? '← ઉપલબ્ધ સેવાઓ જુઓ' : language === 'hi' ? '← उपलब्ध सेवाएं देखें' : '← View Available Services'}
+            </button>
+            <button
+              onClick={() => router.push('/track')}
+              className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs shadow-2xs hover:bg-slate-50 transition"
+            >
+              {language === 'gu' ? 'હાલની અરજી ટ્રેક કરો' : language === 'hi' ? 'आवेदन ट्रैक करें' : 'Track Existing Application'}
+            </button>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const totalFee = form.official_fee + form.service_fee;
 

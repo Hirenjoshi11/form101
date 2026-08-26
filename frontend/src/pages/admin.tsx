@@ -270,6 +270,37 @@ export default function AdminPage() {
   };
 
   // ─── FORM & RATES CRUD HANDLERS ───
+  const handleToggleFormActive = async (formId: string) => {
+    // 1. Optimistic immediate state update
+    setFormsList(prevForms =>
+      prevForms.map(f => {
+        if (f.id === formId || f.slug === formId) {
+          const nextState = f.is_active === false ? true : false;
+          return { ...f, is_active: nextState };
+        }
+        return f;
+      })
+    );
+
+    try {
+      const updated = await ApiService.toggleFormActive(formId);
+      if (updated) {
+        setFormsList(prevForms =>
+          prevForms.map(f => (f.id === updated.id || f.slug === updated.slug ? updated : f))
+        );
+        showToast(
+          updated.is_active !== false
+            ? (language === 'gu' ? `સેવા "${updated.title_gu}" નાગરિકો માટે સક્રિય કરવામાં આવી` : `Form "${updated.title_en}" is now ACTIVE (Visible to citizens)`)
+            : (language === 'gu' ? `સેવા "${updated.title_gu}" નાગરિકોથી છુપાવવામાં આવી (નિષ્ક્રિય)` : `Form "${updated.title_en}" is now PAUSED (Hidden from citizens)`)
+        );
+      }
+    } catch (e) {
+      showToast('Failed to update form active status');
+      const forms = await ApiService.getForms();
+      setFormsList(forms);
+    }
+  };
+
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingForm) return;
@@ -296,7 +327,7 @@ export default function AdminPage() {
       await ApiService.deleteForm(formId);
       setFormsList(prev => prev.filter(f => f.id !== formId && f.slug !== formId));
       setShowDeleteFormConfirm(null);
-      showToast('Service form removed');
+      showToast('Service form permanently deleted');
     } catch (e) {
       showToast('Failed to delete form');
     }
@@ -1407,70 +1438,135 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Service Cards Grid with Edit / Manage Fields Buttons */}
+              {/* Service Cards Grid with Edit, Toggle Active/Inactive, & Delete Buttons */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {formsList.map(form => (
-                  <div
-                    key={form.id}
-                    className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <FormIcon slug={form.slug} size="md" />
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-[#159447] bg-[#EAF6EE] px-2.5 py-1 rounded-full">
-                            {form.turnaround_days} Days SLA
-                          </span>
+                {formsList.map(form => {
+                  const isActive = form.is_active !== false;
+                  return (
+                    <div
+                      key={form.id}
+                      className={`bg-white rounded-2xl p-5 sm:p-6 border transition-all duration-200 shadow-xs flex flex-col justify-between ${
+                        isActive
+                          ? 'border-slate-200/90'
+                          : 'border-slate-300 bg-slate-50/70 opacity-95'
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        {/* Top Action Bar with Status Pill, SLA & Delete */}
+                        <div className="flex items-center justify-between">
+                          <FormIcon slug={form.slug} size="md" />
+                          <div className="flex items-center gap-1.5">
+                            {/* Live Status Badge */}
+                            <span
+                              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                                isActive
+                                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                  : 'text-slate-600 bg-slate-100 border-slate-300'
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                              <span>{isActive ? 'Active / Visible' : 'Turned OFF'}</span>
+                            </span>
+
+                            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">
+                              {form.turnaround_days}d SLA
+                            </span>
+
+                            {/* Delete Button (distinct from Toggle) */}
+                            <button
+                              onClick={() => setShowDeleteFormConfirm(form)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                              title="Delete Form Permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Service Title & Info */}
+                        <div>
+                          <h3 className="font-extrabold text-base text-[#18232D] leading-snug">{form.title_en}</h3>
+                          <p className="text-xs text-[#159447] font-bold mt-0.5">{form.title_gu}</p>
+                          <p className="text-xs text-[#5B6470] mt-1.5 line-clamp-2">{form.description_en}</p>
+                        </div>
+
+                        {/* Inactive Warning Callout */}
+                        {!isActive && (
+                          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-[11px] font-semibold leading-tight">
+                              {language === 'gu'
+                                ? 'આ સેવા હાલમાં નાગરિકો માટે બંધ (છુપાયેલ) છે.'
+                                : 'Hidden from citizens. Citizens cannot see or apply for this form.'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 space-y-3 mt-4">
+                        {/* Interactive Toggle Switch Row */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+                          <div className="pr-2">
+                            <span className="block text-xs font-black text-[#18232D]">
+                              {isActive ? 'Citizens Can Apply' : 'Service Hidden from Public'}
+                            </span>
+                            <span className="block text-[10px] text-[#5B6470] leading-tight">
+                              {isActive ? 'Turn OFF to temporarily pause service' : 'Turn ON to show on portal'}
+                            </span>
+                          </div>
+
                           <button
-                            onClick={() => setShowDeleteFormConfirm(form)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
-                            title="Delete Form"
+                            type="button"
+                            onClick={() => handleToggleFormActive(form.id)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isActive ? 'bg-[#159447]' : 'bg-slate-300'
+                            }`}
+                            title={isActive ? 'Click to Turn OFF (Hide from citizens)' : 'Click to Turn ON (Show to citizens)'}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                isActive ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
                           </button>
                         </div>
-                      </div>
 
-                      <h3 className="font-extrabold text-base text-[#18232D]">{form.title_en}</h3>
-                      <p className="text-xs text-[#159447] font-semibold mt-0.5">{form.title_gu}</p>
-                      <p className="text-xs text-[#5B6470] mt-2 line-clamp-2">{form.description_en}</p>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 p-2.5 rounded-xl">
-                          <span className="text-[#5B6470] block text-[10px]">Official Govt Fee</span>
-                          <span className="font-black text-[#18232D] text-sm">₹{form.official_fee}</span>
+                        {/* Rates Summary */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-slate-50 p-2.5 rounded-xl">
+                            <span className="text-[#5B6470] block text-[10px]">Official Govt Fee</span>
+                            <span className="font-black text-[#18232D] text-sm">₹{form.official_fee}</span>
+                          </div>
+                          <div className="bg-slate-50 p-2.5 rounded-xl">
+                            <span className="text-[#5B6470] block text-[10px]">FormSeva Service Fee</span>
+                            <span className="font-black text-[#159447] text-sm">₹{form.service_fee}</span>
+                          </div>
                         </div>
-                        <div className="bg-slate-50 p-2.5 rounded-xl">
-                          <span className="text-[#5B6470] block text-[10px]">FormSeva Service Fee</span>
-                          <span className="font-black text-[#159447] text-sm">₹{form.service_fee}</span>
+
+                        <div className="flex items-center justify-between text-sm font-black text-[#18232D] pt-0.5">
+                          <span>Total Citizen Fee:</span>
+                          <span className="text-[#159447] text-base">₹{form.official_fee + form.service_fee}</span>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between text-sm font-black text-[#18232D] pt-1">
-                        <span>Total Citizen Fee:</span>
-                        <span className="text-[#159447] text-base">₹{form.official_fee + form.service_fee}</span>
-                      </div>
+                        <div className="flex items-center justify-between text-xs text-[#5B6470]">
+                          <span>Configured Fields:</span>
+                          <span className="font-bold text-[#18232D]">{form.fields?.length || 5} fields</span>
+                        </div>
 
-                      <div className="flex items-center justify-between text-xs text-[#5B6470]">
-                        <span>Configured Fields:</span>
-                        <span className="font-bold text-[#18232D]">{form.fields?.length || 5} fields</span>
+                        <button
+                          onClick={() => {
+                            setEditingForm(JSON.parse(JSON.stringify(form)));
+                            setFormEditorTab('meta');
+                          }}
+                          className="w-full py-2.5 rounded-xl bg-[#18232D] hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Edit Form Metadata & Fields</span>
+                        </button>
                       </div>
-
-                      <button
-                        onClick={() => {
-                          setEditingForm(JSON.parse(JSON.stringify(form)));
-                          setFormEditorTab('meta');
-                        }}
-                        className="w-full py-2.5 rounded-xl bg-[#18232D] hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        <span>Edit Form Metadata & Fields</span>
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
             </div>
@@ -2256,6 +2352,34 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* Public Citizen Visibility Toggle */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90">
+                    <div className="pr-4">
+                      <span className="block text-xs font-black text-[#18232D]">
+                        Citizen Portal Visibility (Show / Hide)
+                      </span>
+                      <span className="block text-[11px] text-[#5B6470] mt-0.5">
+                        {editingForm.is_active !== false
+                          ? '🟢 Active: Citizens can view, search, and submit applications for this form.'
+                          : '⚪ Inactive: Hidden from citizens. Applications temporarily paused.'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingForm({ ...editingForm, is_active: editingForm.is_active === false ? true : false })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        editingForm.is_active !== false ? 'bg-[#159447]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          editingForm.is_active !== false ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button
                       type="button"
@@ -2726,6 +2850,55 @@ export default function AdminPage() {
                   className="px-5 py-2 rounded-xl bg-[#18232D] text-white font-bold text-xs"
                 >
                   Close Details
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {/* MODAL: DELETE FORM CONFIRMATION                                       */}
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {showDeleteFormConfirm && (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-scale-in text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-xs">
+                <Trash2 className="w-7 h-7" />
+              </div>
+              <h3 className="font-extrabold text-lg text-[#18232D]">
+                Permanently Delete Form?
+              </h3>
+              <p className="text-xs text-[#5B6470] leading-relaxed">
+                Are you sure you want to permanently delete{' '}
+                <span className="font-bold text-[#18232D]">{showDeleteFormConfirm.title_en}</span> (
+                {showDeleteFormConfirm.slug})?
+              </p>
+
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-left text-xs text-amber-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Difference between Toggle vs Delete:</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  • <strong>Turn OFF (Toggle Switch):</strong> Hides the form from citizens temporarily without deleting its configured fields and history.
+                  <br />
+                  • <strong>Delete Button:</strong> Permanently destroys the form configuration from the system.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteFormConfirm(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteForm(showDeleteFormConfirm.id)}
+                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition"
+                >
+                  Confirm Delete Form
                 </button>
               </div>
             </div>
