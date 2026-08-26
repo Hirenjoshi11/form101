@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -9,15 +9,13 @@ import { DocumentUploader } from '@/components/DocumentUploader';
 import { OtpModal } from '@/components/OtpModal';
 import { useLanguage, Language } from '@/i18n/LanguageContext';
 import { ApiService } from '@/lib/api';
-import { CertificateForm, FormSubmission, OtpRequest } from '@/lib/types';
+import { CertificateForm, FormSubmission, OtpRequest, ServiceStep, ServiceDocument, FormField } from '@/lib/types';
 import {
   ShieldCheck, Clock, IndianRupee, FileText,
   CheckCircle2, ChevronRight, Loader2, AlertTriangle,
-  Sparkles, ArrowLeft, RefreshCw, AlertCircle, Phone
+  Sparkles, ArrowLeft, RefreshCw, AlertCircle, Phone,
+  Edit3, Check, HelpCircle, Building
 } from 'lucide-react';
-
-const STEPS = ['personal', 'address', 'specific', 'documents', 'review'] as const;
-type Step = typeof STEPS[number];
 
 export default function FormDetailPage() {
   const router = useRouter();
@@ -28,7 +26,7 @@ export default function FormDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [step, setStep] = useState<Step>('personal');
+  const [activeStepKey, setActiveStepKey] = useState<string>('applicant');
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, File>>({});
 
@@ -58,6 +56,13 @@ export default function FormDetailPage() {
       const f = await ApiService.getFormDetail(slug);
       setForm(f);
       
+      // Default to first step
+      if (f.steps && f.steps.length > 0) {
+        setActiveStepKey(f.steps[0].step_key);
+      } else {
+        setActiveStepKey('applicant');
+      }
+
       // If resubmission mode is active, fetch previous submission data
       if (resubmit) {
         try {
@@ -94,52 +99,87 @@ export default function FormDetailPage() {
     };
   }, [slug, resubmit]);
 
+  // Derive configured steps
+  const stepsList: { key: string; label: string; desc?: string }[] = useMemo(() => {
+    if (form?.steps && form.steps.length > 0) {
+      return form.steps.map(s => ({
+        key: s.step_key,
+        label: language === 'gu' ? s.title_gu : language === 'hi' ? s.title_hi : s.title_en,
+        desc: language === 'gu' ? s.description_gu : language === 'hi' ? s.description_hi : s.description_en
+      }));
+    }
+    // Fallback default
+    return [
+      { key: 'applicant', label: language === 'gu' ? 'અરજદાર વિગત' : language === 'hi' ? 'आवेदक विवरण' : 'Applicant Details' },
+      { key: 'address', label: language === 'gu' ? 'સરનામું' : language === 'hi' ? 'आवासीय पता' : 'Address' },
+      { key: 'documents', label: language === 'gu' ? 'દસ્તાવેજો' : language === 'hi' ? 'दस्तावेज' : 'Documents' },
+      { key: 'review', label: language === 'gu' ? 'ચકાસણી અને ફી' : language === 'hi' ? 'समीक्षा एवं शुल्क' : 'Review & Pay' }
+    ];
+  }, [form, language]);
+
+  const currentStepIdx = useMemo(() => {
+    const idx = stepsList.findIndex(s => s.key === activeStepKey);
+    return idx >= 0 ? idx : 0;
+  }, [stepsList, activeStepKey]);
+
+  // Filter required documents based on condition_rules
+  const visibleDocuments = useMemo(() => {
+    if (!form?.service_documents || form.service_documents.length === 0) {
+      return form?.required_docs_json || [];
+    }
+
+    return form.service_documents.filter(doc => {
+      if (doc.required_level === 'mandatory') return true;
+      if (!doc.condition_rule) return true;
+
+      // Condition rule evaluation
+      const { field, equals, not_equals, greater_than } = doc.condition_rule;
+      if (field && equals !== undefined) {
+        return fieldValues[field] === equals;
+      }
+      if (field && not_equals !== undefined) {
+        return fieldValues[field] && fieldValues[field] !== not_equals;
+      }
+      if (field && greater_than !== undefined) {
+        const val = parseFloat(fieldValues[field] || '0');
+        return val > greater_than;
+      }
+      return true;
+    });
+  }, [form, fieldValues]);
+
   const getTitle = (f: CertificateForm) =>
     language === 'gu' ? f.title_gu : language === 'hi' ? f.title_hi : f.title_en;
 
-  // Clean, non-duplicate step labels without duplicate numbers
-  const stepTitles: Record<Language, Record<Step, string>> = {
-    gu: {
-      personal: 'અંગત માહિતી',
-      address: 'સરનામું',
-      specific: 'સેવા વિગતો',
-      documents: 'દસ્તાવેજ અપલોડ',
-      review: 'ચકાસણી અને ફી',
-    },
-    hi: {
-      personal: 'व्यक्तिગત विवरण',
-      address: 'आवासीय पता',
-      specific: 'सेवा विवरण',
-      documents: 'दस्तावेज अपलोड',
-      review: 'समीक्षा एवं भुगतान',
-    },
-    en: {
-      personal: 'Personal Details',
-      address: 'Address Info',
-      specific: 'Service Details',
-      documents: 'Documents',
-      review: 'Review & Pay',
-    },
-  };
-
-  const currentStepIdx = STEPS.indexOf(step);
-
   const handleNext = () => {
-    // Validate phone number on step 1
-    if (step === 'personal') {
+    // Basic phone validation on personal/applicant step
+    if (activeStepKey === 'applicant' || activeStepKey === 'candidate' || activeStepKey === 'personal') {
       const phone = fieldValues.mobile_number || fieldValues.mobile || fieldValues.phone;
       if (!phone || String(phone).replace(/[^0-9]/g, '').length < 10) {
-        alert(language === 'gu' ? 'કૃપા કરીને માન્ય ૧૦-અંકનો મોબાઈલ નંબર દાખલ કરો.' : language === 'hi' ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
+        alert(
+          language === 'gu'
+            ? 'કૃપા કરીને માન્ય ૧૦-અંકનો મોબાઈલ નંબર દાખલ કરો.'
+            : language === 'hi'
+            ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।'
+            : 'Please enter a valid 10-digit mobile number.'
+        );
         return;
       }
     }
+
     const nextIdx = currentStepIdx + 1;
-    if (nextIdx < STEPS.length) setStep(STEPS[nextIdx]);
+    if (nextIdx < stepsList.length) {
+      setActiveStepKey(stepsList[nextIdx].key);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handlePrev = () => {
     const prevIdx = currentStepIdx - 1;
-    if (prevIdx >= 0) setStep(STEPS[prevIdx]);
+    if (prevIdx >= 0) {
+      setActiveStepKey(stepsList[prevIdx].key);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handlePrefillDemo = () => {
@@ -150,20 +190,42 @@ export default function FormDetailPage() {
       mother_name: 'Savitaben Patel',
       candidate_name: 'Rameshchandra B. Patel',
       gender: 'male',
-      dob: '1985-06-15',
+      dob: '1988-06-15',
       mobile_number: '9825044551',
       aadhaar_number: '982145519821',
-      annual_income: '120000',
-      family_gross_income: '320000',
-      district: 'Ahmedabad',
-      taluka: 'Daskroi',
+      identity_type: 'aadhaar',
+      identity_number: '982145519821',
+      
+      // Structured address
+      house_flat_no: 'B-402',
+      building_society: 'Radhe Shyam Residency',
+      street_road: 'Near Sardar Patel Ring Road',
+      area_locality: 'Vastral',
       village_city: 'Vastral',
       village_name: 'Vastral',
-      residential_address: 'B-402, Radhe Shyam Residency, SP Ring Road, Vastral',
+      taluka: 'Daskroi',
+      district: 'Ahmedabad',
+      state: 'Gujarat',
       pincode: '382418',
       residence_years: '25',
       ration_card_no: '0712398214',
-      income_purpose: 'scholarship',
+      
+      // Income details
+      income_purpose: 'higher_education',
+      income_salary: '180000',
+      income_agriculture: '60000',
+      income_business: '0',
+      income_other: '0',
+      annual_income: '240000',
+      family_gross_income: '240000',
+      has_income_tax_return: 'no',
+      
+      // EWS / Assets
+      agricultural_land_acres: '0',
+      residential_flat_sqft: '850',
+      residential_plot_sqyards: '0',
+      
+      // NCL / SEBC
       caste_category: 'sebc',
       caste_subcaste: 'Patidar / Kadva Patel',
       religion: 'hindu',
@@ -171,25 +233,35 @@ export default function FormDetailPage() {
       caste_certificate_no: 'SEBC/2021/89412',
       caste_cert_issue_date: '2021-05-10',
       caste_cert_issuing_office: 'Mamlatdar Office Daskroi',
-      income_year_1: '110000',
-      income_year_2: '115000',
-      income_year_3: '120000',
+      income_fy_2023_24: '220000',
+      income_fy_2024_25: '235000',
+      income_fy_2025_26: '240000',
       parents_govt_designation: 'none',
+      
+      // Land
       record_type: '7_12',
       survey_number: '142/1',
       khata_number: '89',
-      rto_office: 'GJ-27',
+      
+      // RTO
+      licence_service_type: 'new_learner',
       licence_type: 'learner',
       vehicle_class: 'MCWG_LMV',
       educational_qualification: '10th_pass',
       blood_group: 'B+',
+      rto_office: 'GJ-27',
+      
+      // NEET
       nationality: 'indian',
       category: 'gen_ews',
       pwd_status: 'no',
       email_address: 'ramesh.patel@gmail.com',
       class_10_board: 'GSEB',
       class_10_percentage: '82.5',
+      class_10_passing_year: '2023',
       class_12_status: 'passed',
+      class_12_board: 'GSEB',
+      class_12_percentage: '78.4',
       question_paper_medium: 'Gujarati',
       exam_city_1: 'Ahmedabad',
       exam_city_2: 'Gandhinagar'
@@ -203,16 +275,14 @@ export default function FormDetailPage() {
       const user = ApiService.getCurrentUser();
       if (!user) {
         const phone = fieldValues.mobile_number || '9825044551';
-        await ApiService.login('citizen@formseva.in', 'citizen', fieldValues.applicant_name || 'Gujarat Citizen', String(phone));
+        await ApiService.login('citizen@formseva.in', 'citizen', fieldValues.applicant_name || fieldValues.candidate_name || 'Gujarat Citizen', String(phone));
       }
 
       if (resubmissionTarget) {
-        // Resubmission flow - update existing application
         const result = await ApiService.resubmitSubmission(resubmissionTarget.id, fieldValues, resubmissionNote);
         setSubmissionId(result.id);
         setDone(true);
       } else {
-        // New application flow
         const result = await ApiService.createSubmission(form.slug, fieldValues);
         setSubmissionId(result.id);
         setDone(true);
@@ -256,6 +326,7 @@ export default function FormDetailPage() {
   );
 
   const totalFee = form.official_fee + form.service_fee;
+  const currentStepFields = (form.fields || []).filter(f => f.step_section === activeStepKey);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -301,7 +372,7 @@ export default function FormDetailPage() {
         )}
 
         {/* Header Strip */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mb-1">
               <Link href="/#services-catalog" className="hover:text-[#159447] transition">
@@ -310,16 +381,24 @@ export default function FormDetailPage() {
               <ChevronRight className="w-3.5 h-3.5" />
               <span className="text-slate-700">{getTitle(form)}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900">{getTitle(form)}</h1>
-            <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500 font-medium">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900">{getTitle(form)}</h1>
+              {form.exam_year && (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                  {form.exam_year} Edition
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-500 font-medium">
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-amber-500" />
-                {form.turnaround_days} {language === 'gu' ? 'દિવસ' : 'days'}
+                {form.turnaround_days} {language === 'gu' ? 'દિવસ' : 'Days'}
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <IndianRupee className="w-3.5 h-3.5 text-[#159447]" />
-                Fee: ₹{totalFee} (Govt: ₹{form.official_fee} + Assisted: ₹{form.service_fee})
+                FormSeva Fee: <strong>₹{form.service_fee}</strong>
+                {form.official_fee > 0 && ` + Govt Fee: ₹${form.official_fee}`}
               </span>
             </div>
           </div>
@@ -327,7 +406,7 @@ export default function FormDetailPage() {
           {!done && (
             <button
               onClick={handlePrefillDemo}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition shadow-2xs self-start sm:self-auto"
               title="Auto-fill with sample citizen data for instant testing"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -337,7 +416,7 @@ export default function FormDetailPage() {
         </div>
 
         {done ? (
-          <div className="bg-white border border-emerald-200 rounded-2xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
+          <div className="bg-white border border-emerald-200 rounded-3xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-[#159447] flex items-center justify-center mx-auto shadow-xs">
               <CheckCircle2 className="w-10 h-10" />
             </div>
@@ -368,27 +447,27 @@ export default function FormDetailPage() {
           </div>
         ) : (
           <>
-            {/* Single Clean Step Breadcrumb Indicator (No Duplicate Step Numbers) */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
-              {STEPS.map((s, idx) => {
-                const isCurrent = s === step;
+            {/* ─── SINGLE CLEAN STEP PROGRESS INDICATOR (NO DUPLICATE NUMBERS) ─── */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {stepsList.map((s, idx) => {
+                const isCurrent = s.key === activeStepKey;
                 const isDone = idx < currentStepIdx;
                 const stepNum = idx + 1;
                 return (
                   <button
-                    key={s}
+                    key={s.key}
                     onClick={() => {
-                      if (idx <= currentStepIdx) setStep(s);
+                      if (idx <= currentStepIdx) setActiveStepKey(s.key);
                     }}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${
                       isCurrent
                         ? 'bg-[#18232D] text-white shadow-xs'
                         : isDone
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100/60'
                         : 'bg-white border border-slate-200 text-slate-400'
                     }`}
                   >
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black ${
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
                       isCurrent
                         ? 'bg-[#159447] text-white'
                         : isDone
@@ -397,36 +476,68 @@ export default function FormDetailPage() {
                     }`}>
                       {isDone ? '✓' : stepNum}
                     </span>
-                    <span>{stepTitles[language][s]}</span>
+                    <span>{s.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Step Form Box */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-7 shadow-xs">
-              {step !== 'documents' && step !== 'review' && (
-                <DynamicFormStep
-                  fields={(form.fields || []).filter(f => f.step_section === step)}
-                  values={fieldValues}
-                  errors={{}}
-                  onChange={(key, val) => setFieldValues(prev => ({ ...prev, [key]: val }))}
-                />
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-8 shadow-xs">
+              
+              {/* Dynamic Field Step */}
+              {activeStepKey !== 'documents' && activeStepKey !== 'review' && (
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h2 className="text-base font-black text-slate-900">
+                      {stepsList[currentStepIdx]?.label}
+                    </h2>
+                    {stepsList[currentStepIdx]?.desc && (
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {stepsList[currentStepIdx].desc}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <DynamicFormStep
+                    fields={currentStepFields}
+                    values={fieldValues}
+                    errors={{}}
+                    onChange={(key, val) => setFieldValues(prev => ({ ...prev, [key]: val }))}
+                  />
+                </div>
               )}
 
-              {step === 'documents' && (
-                <DocumentUploader
-                  requiredDocs={form.required_docs_json}
-                  uploadedFiles={uploadedDocs}
-                  onFileUpload={(key, file) => setUploadedDocs(prev => ({ ...prev, [key]: file }))}
-                />
+              {/* Documents Step */}
+              {activeStepKey === 'documents' && (
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h2 className="text-base font-black text-slate-900">
+                      {language === 'gu' ? 'જરૂરી દસ્તાવેજો અપલોડ કરો' : language === 'hi' ? 'आवश्यक दस्तावेज अपलोड करें' : 'Upload Required Documents'}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {language === 'gu' ? 'તમારા દાખલ કરેલ વિગતો મુજબ જરૂરી દસ્તાવેજ અપલોડ કરો.' : 'Upload clear scanned copies or photos as per your application specifics.'}
+                    </p>
+                  </div>
+                  <DocumentUploader
+                    requiredDocs={visibleDocuments}
+                    uploadedFiles={uploadedDocs}
+                    onFileUpload={(key, file) => setUploadedDocs(prev => ({ ...prev, [key]: file }))}
+                  />
+                </div>
               )}
 
-              {step === 'review' && (
-                <div className="space-y-5">
-                  <h2 className="text-base font-black text-slate-900 border-b border-slate-100 pb-3">
-                    {language === 'gu' ? 'વિગતો ચકાસો અને સબમિટ કરો' : language === 'hi' ? 'विवरण जांचें और जमा करें' : 'Review Details & Submit'}
-                  </h2>
+              {/* Review Step */}
+              {activeStepKey === 'review' && (
+                <div className="space-y-6">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h2 className="text-base font-black text-slate-900">
+                      {language === 'gu' ? 'વિગતો ચકાસો અને સબમિટ કરો' : language === 'hi' ? 'विवरण जांचें और जमा करें' : 'Review Details & Submit'}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {language === 'gu' ? 'કૃપા કરીને સબમિટ કરતા પહેલા તમામ વિગતોની ચકાસણી કરો.' : 'Please verify all entered details before payment.'}
+                    </p>
+                  </div>
 
                   {resubmissionTarget && (
                     <div className="space-y-2 bg-amber-50 p-4 rounded-2xl border border-amber-200">
@@ -443,49 +554,90 @@ export default function FormDetailPage() {
                     </div>
                   )}
 
-                  {Object.keys(fieldValues).length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 rounded-2xl p-4 text-xs">
-                      {Object.entries(fieldValues).map(([k, v]) => (
-                        <div key={k} className="flex flex-col break-words">
-                          <span className="font-semibold text-slate-500 capitalize">{k.replace(/_/g, ' ')}</span>
-                          <span className="font-bold text-slate-900 break-words">{String(v)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No field data entered.</p>
-                  )}
+                  {/* Section summaries with Edit jumps */}
+                  {stepsList.filter(s => s.key !== 'review' && s.key !== 'documents').map((s) => {
+                    const sFields = (form.fields || []).filter(f => f.step_section === s.key);
+                    const filledFields = sFields.filter(f => fieldValues[f.field_key] !== undefined && fieldValues[f.field_key] !== '');
+                    if (filledFields.length === 0) return null;
 
-                  {Object.keys(uploadedDocs).length > 0 && (
-                    <div className="bg-slate-50 rounded-2xl p-4 text-xs space-y-1.5">
-                      <span className="font-bold text-slate-700 block mb-1">Attached Documents:</span>
-                      {Object.keys(uploadedDocs).map(k => (
-                        <div key={k} className="flex items-center gap-1.5 text-emerald-800 break-words">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span className="break-words">{k} ({uploadedDocs[k].name})</span>
+                    return (
+                      <div key={s.key} className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                          <h3 className="text-xs font-black uppercase tracking-wide text-slate-700">
+                            {s.label}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setActiveStepKey(s.key)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-[#159447] hover:underline"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>{language === 'gu' ? 'સુધારો' : language === 'hi' ? 'संशोधित करें' : 'Edit'}</span>
+                          </button>
                         </div>
-                      ))}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {filledFields.map((f) => (
+                            <div key={f.field_key} className="flex flex-col break-words">
+                              <span className="font-semibold text-slate-500">
+                                {language === 'gu' ? f.label_gu : language === 'hi' ? f.label_hi : f.label_en}
+                              </span>
+                              <span className="font-bold text-slate-900 break-words mt-0.5">
+                                {String(fieldValues[f.field_key])}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Uploaded Documents Review */}
+                  <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wide text-slate-700">
+                        {language === 'gu' ? 'જોડાયેલ દસ્તાવેજો' : language === 'hi' ? 'संलग्न दस्तावेज' : 'Attached Documents'}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStepKey('documents')}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#159447] hover:underline"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>{language === 'gu' ? 'સુધારો' : language === 'hi' ? 'संशोधित करें' : 'Edit'}</span>
+                      </button>
                     </div>
-                  )}
+                    {Object.keys(uploadedDocs).length > 0 ? (
+                      <div className="space-y-1.5 text-xs">
+                        {Object.keys(uploadedDocs).map(k => (
+                          <div key={k} className="flex items-center gap-1.5 text-emerald-800 break-words">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#159447] shrink-0" />
+                            <span className="font-semibold">{k}: {uploadedDocs[k].name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No files attached yet.</p>
+                    )}
+                  </div>
 
                   {/* Fee Breakdown & Submit/Pay Button */}
-                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                      <span className="text-xs text-emerald-800 font-medium block">{t.totalFeeLabel}</span>
-                      <div className="text-2xl font-black text-slate-900">
+                      <span className="text-xs text-emerald-800 font-bold block">{t.totalFeeLabel}</span>
+                      <div className="text-2xl sm:text-3xl font-black text-slate-900">
                         {resubmissionTarget ? '₹0 (Paid)' : `₹${totalFee}`}
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
+                      <div className="text-[11px] text-slate-600 mt-0.5">
                         {resubmissionTarget
                           ? 'Resubmission is free of charge (previously paid)'
-                          : `Govt Fee: ₹${form.official_fee} + Assisted Service: ₹${form.service_fee}`}
+                          : `FormSeva Assisted Fee: ₹${form.service_fee}${form.official_fee > 0 ? ` + Govt Official Fee: ₹${form.official_fee}` : ''}`}
                       </div>
                     </div>
 
                     <button
                       onClick={handleSubmit}
                       disabled={submitting}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-6 py-3 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-sm disabled:opacity-50 transition"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[48px] px-7 py-3.5 rounded-2xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-black shadow-md hover:shadow-lg disabled:opacity-50 transition"
                     >
                       {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                       <span>
@@ -503,15 +655,15 @@ export default function FormDetailPage() {
                 <button
                   onClick={handlePrev}
                   disabled={currentStepIdx === 0}
-                  className="min-h-[44px] px-4 sm:px-5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 transition"
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 transition"
                 >
                   {t.previousStep}
                 </button>
 
-                {step !== 'review' && (
+                {activeStepKey !== 'review' && (
                   <button
                     onClick={handleNext}
-                    className="inline-flex items-center gap-1.5 min-h-[44px] px-5 sm:px-6 py-2 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs transition"
+                    className="inline-flex items-center gap-1.5 min-h-[44px] px-6 py-2.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white text-xs sm:text-sm font-bold shadow-xs transition"
                   >
                     <span>{t.nextStep}</span>
                     <ChevronRight className="w-4 h-4" />

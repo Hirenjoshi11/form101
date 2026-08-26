@@ -9,7 +9,7 @@ export interface FormField {
   id: string;
   form_id: string;
   field_key: string;
-  step_section: 'personal' | 'address' | 'specific' | 'documents';
+  step_section: string;
   field_type: 'text' | 'number' | 'select' | 'date' | 'textarea' | 'radio' | 'checkbox';
   label_gu: string;
   label_hi: string;
@@ -34,6 +34,62 @@ export interface RequiredDocItem {
   required: boolean;
 }
 
+export interface ServiceStep {
+  id: string;
+  form_id: string;
+  step_key: string;
+  step_number: number;
+  title_en: string;
+  title_gu: string;
+  title_hi: string;
+  description_en?: string;
+  description_gu?: string;
+  description_hi?: string;
+}
+
+export interface ServiceDocument {
+  id: string;
+  form_id: string;
+  document_type_key: string;
+  name_en: string;
+  name_gu: string;
+  name_hi: string;
+  required_level: 'mandatory' | 'conditional' | 'optional' | 'supporting';
+  condition_rule?: Record<string, any>;
+  accepted_formats: string[];
+  max_size_mb: number;
+  why_needed_en?: string;
+  why_needed_gu?: string;
+  why_needed_hi?: string;
+  where_to_get_en?: string;
+  where_to_get_gu?: string;
+  where_to_get_hi?: string;
+  source_authority_en?: string;
+  source_authority_gu?: string;
+  source_authority_hi?: string;
+  is_active?: boolean;
+  sort_order: number;
+}
+
+export interface RtoOffice {
+  id: string;
+  rto_code: string;
+  district: string;
+  office_name_en: string;
+  office_name_gu: string;
+  office_name_hi: string;
+  address: string;
+  supported_services: string[];
+  is_active?: boolean;
+}
+
+export interface DistrictGeo {
+  name_en: string;
+  name_gu: string;
+  name_hi: string;
+  talukas: string[];
+}
+
 export interface CertificateForm {
   id: string;
   slug: string;
@@ -50,6 +106,9 @@ export interface CertificateForm {
   service_fee: number;
   turnaround_days: number;
   expected_otp_count: number;
+  version?: string;
+  exam_year?: number;
+  bulletin_version?: string;
   required_docs_json: RequiredDocItem[];
   is_active: boolean;
   sort_order: number;
@@ -58,6 +117,8 @@ export interface CertificateForm {
   fact_en?: string;
   fact_gu?: string;
   fields?: FormField[];
+  steps?: ServiceStep[];
+  service_documents?: ServiceDocument[];
 }
 
 export interface SubmissionDocument {

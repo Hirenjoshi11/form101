@@ -1,4 +1,4 @@
-import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions, OperatorFormAssignment } from './types';
+import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions, OperatorFormAssignment, ServiceDocument, RtoOffice, DistrictGeo, ServiceStep } from './types';
 
 const getApiBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) return process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -173,6 +173,51 @@ export class ApiService {
       return await res.json();
     } catch (e) {
       throw new Error('Form not found');
+    }
+  }
+
+  static async getFormDocuments(slugOrId: string): Promise<ServiceDocument[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${slugOrId}/documents`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to load form documents');
+      return await res.json();
+    } catch (e) {
+      const form = await this.getFormDetail(slugOrId);
+      return form.service_documents || [];
+    }
+  }
+
+  static async getFormSteps(slugOrId: string): Promise<ServiceStep[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${slugOrId}/steps`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to load form steps');
+      return await res.json();
+    } catch (e) {
+      const form = await this.getFormDetail(slugOrId);
+      return form.steps || [];
+    }
+  }
+
+  static async getRtoOffices(district?: string, service?: string): Promise<RtoOffice[]> {
+    const qs = new URLSearchParams();
+    if (district) qs.set('district', district);
+    if (service) qs.set('service', service);
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/rto/offices?${qs.toString()}`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to load RTO offices');
+      return await res.json();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async getGujaratGeography(): Promise<Record<string, DistrictGeo>> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/geography/districts`, { headers: this.getHeaders() });
+      if (!res.ok) throw new Error('Failed to load Gujarat geography');
+      return await res.json();
+    } catch (e) {
+      return {};
     }
   }
 

@@ -32,12 +32,45 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
     return field.help_text_en;
   };
 
+  const handleFieldChange = (fieldKey: string, val: any) => {
+    onChange(fieldKey, val);
+
+    // Auto-calculate Total Annual Income for Income Certificate
+    if (
+      fieldKey === 'income_salary' ||
+      fieldKey === 'income_agriculture' ||
+      fieldKey === 'income_business' ||
+      fieldKey === 'income_other'
+    ) {
+      const salary = parseFloat(fieldKey === 'income_salary' ? val : values.income_salary || '0') || 0;
+      const agri = parseFloat(fieldKey === 'income_agriculture' ? val : values.income_agriculture || '0') || 0;
+      const biz = parseFloat(fieldKey === 'income_business' ? val : values.income_business || '0') || 0;
+      const other = parseFloat(fieldKey === 'income_other' ? val : values.income_other || '0') || 0;
+      const total = salary + agri + biz + other;
+      if (total > 0) {
+        onChange('annual_income', total.toString());
+      }
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
       {fields.map((field) => {
-        const value = values[field.field_key] || '';
+        const value = values[field.field_key] !== undefined ? values[field.field_key] : '';
         const error = errors[field.field_key];
-        const isFullWidth = field.field_type === 'textarea' || field.step_section === 'address';
+        const isFullWidth =
+          field.field_type === 'textarea' ||
+          field.field_key === 'residential_address' ||
+          field.field_key === 'building_society' ||
+          field.field_key === 'street_road' ||
+          field.field_key === 'caste_subcaste' ||
+          field.field_key === 'sebc_caste_name' ||
+          field.field_key === 'candidate_name' ||
+          field.field_key === 'applicant_name' ||
+          field.field_key === 'income_purpose' ||
+          field.field_key === 'rto_office' ||
+          field.field_key === 'licence_type' ||
+          field.field_key === 'record_type';
 
         return (
           <div
@@ -52,7 +85,7 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
             {field.field_type === 'textarea' ? (
               <textarea
                 value={value}
-                onChange={(e) => onChange(field.field_key, e.target.value)}
+                onChange={(e) => handleFieldChange(field.field_key, e.target.value)}
                 placeholder={getPlaceholder(field)}
                 rows={3}
                 className={`w-full min-h-[88px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#159447]/30 focus:border-[#159447] transition-all ${
@@ -62,7 +95,7 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
             ) : field.field_type === 'select' ? (
               <select
                 value={value}
-                onChange={(e) => onChange(field.field_key, e.target.value)}
+                onChange={(e) => handleFieldChange(field.field_key, e.target.value)}
                 className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#159447]/30 focus:border-[#159447] transition-all ${
                   error ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300'
                 }`}
@@ -80,7 +113,7 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
               <input
                 type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
                 value={value}
-                onChange={(e) => onChange(field.field_key, e.target.value)}
+                onChange={(e) => handleFieldChange(field.field_key, e.target.value)}
                 placeholder={getPlaceholder(field)}
                 className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#159447]/30 focus:border-[#159447] transition-all ${
                   error ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300'

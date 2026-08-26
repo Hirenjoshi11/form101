@@ -9,7 +9,7 @@ import { ApiService } from '../lib/api';
 import {
   ShieldCheck, UserCheck, Menu, X, LogIn, Activity,
   Layers, Sparkles, MessageSquare, Info, Phone, Mail,
-  LogOut, ChevronRight, User, ExternalLink
+  LogOut, ChevronRight, User, ExternalLink, FileText
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -41,8 +41,13 @@ export const Navbar: React.FC = () => {
   const navLinks = [
     {
       href: '/',
-      label: language === 'gu' ? 'મુખ્ય પૃષ્ઠ' : language === 'hi' ? 'ડેશબોર્ડ' : 'Dashboard',
+      label: language === 'gu' ? 'મુખ્ય પૃષ્ઠ' : language === 'hi' ? 'डैशबोर्ड' : 'Dashboard',
       icon: Layers
+    },
+    {
+      href: '/documents',
+      label: language === 'gu' ? 'જરૂરી દસ્તાવેજો' : language === 'hi' ? 'आवश्यक दस्तावेज' : 'Documents',
+      icon: FileText
     },
     {
       href: '/track',

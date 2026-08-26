@@ -74,7 +74,9 @@ def test_end_to_end_submission_and_otp_flow():
     sub_data = sub_res.json()
     sub_id = sub_data["id"]
     assert sub_data["status"] == "submitted"
-    assert sub_data["total_fee"] == 119.00
+    assert sub_data["service_fee"] == 70.00
+    assert sub_data["official_fee"] == 20.00
+    assert sub_data["total_fee"] == 90.00
     
     # 2. Operator logs in and views queue
     op_token = client.post("/api/v1/auth/login", json={
@@ -136,7 +138,7 @@ def test_stripe_payment_simulation():
     assert pi_res.status_code == 200
     pi_data = pi_res.json()
     assert "client_secret" in pi_data
-    assert pi_data["amount_inr"] == 65.00 # 15 + 50
+    assert pi_data["amount_inr"] == 80.00 # 15 govt + 65 service
     
     # Confirm Payment
     conf_res = client.post(f"/api/v1/payments/confirm-mock/{pi_data['payment_intent_id']}", headers=headers)
@@ -167,7 +169,7 @@ def test_admin_stats_and_operator_management():
     assert new_op.json()["full_name"] == "Chirag Suthar"
 
 def test_driving_licence_payment_snapshot_is_1000():
-    """Verify that Driving Licence fee is ₹1000 and is snapshotted consistently across submission, payment, and operator queue."""
+    """Verify that Driving Licence assistance fee is ₹1000 and is snapshotted consistently across submission, payment, and operator queue."""
     cit_token = client.post("/api/v1/auth/login", json={
         "email": "dl.citizen@test.in",
         "full_name": "Ketan Patel",
@@ -187,18 +189,18 @@ def test_driving_licence_payment_snapshot_is_1000():
         }
     }, headers=headers).json()
     
-    assert dl_sub["total_fee"] == 1000.00
+    assert dl_sub["service_fee"] == 1000.00
     assert dl_sub["official_fee"] == 150.00
-    assert dl_sub["service_fee"] == 850.00
+    assert dl_sub["total_fee"] == 1150.00
     assert dl_sub["user_phone"] == "9898011223"
     
     # 2. Verify Payment Intent
     pi_res = client.post("/api/v1/payments/create-intent", json={
         "submission_id": dl_sub["id"]
     }, headers=headers).json()
-    assert pi_res["amount_inr"] == 1000.00
+    assert pi_res["amount_inr"] == 1150.00
     
-    # 3. Verify Operator views ₹1000
+    # 3. Verify Operator views submission
     op_token = client.post("/api/v1/auth/login", json={
         "email": "vicky.operator@formseva.in",
         "role": "operator"
@@ -206,7 +208,8 @@ def test_driving_licence_payment_snapshot_is_1000():
     op_headers = {"Authorization": f"Bearer {op_token}"}
     
     op_detail = client.get(f"/api/v1/submissions/{dl_sub['id']}", headers=op_headers).json()
-    assert op_detail["total_fee"] == 1000.00
+    assert op_detail["service_fee"] == 1000.00
+    assert op_detail["total_fee"] == 1150.00
     assert op_detail["user_phone"] == "9898011223"
 
 def test_rejection_and_resubmission_workflow():
