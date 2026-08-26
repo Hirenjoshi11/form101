@@ -1053,7 +1053,7 @@ export class ApiService {
   }
 }
 
-// Fallback Mock Data for UI Resilience
+// Fallback Mock Data for UI Resilience (Dedicated 1:1 Specialization)
 export const mockOperators: Operator[] = [
   {
     id: 'b0000000-0000-0000-0000-000000000001',
@@ -1064,8 +1064,8 @@ export const mockOperators: Operator[] = [
     assigned_count: 12,
     completed_count: 110,
     is_active: true,
-    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003'],
-    assigned_forms: ['income_certificate', 'ews_certificate', 'caste_ncl_certificate']
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002'],
+    assigned_forms: ['income_certificate', 'ews_certificate']
   },
   {
     id: 'b0000000-0000-0000-0000-000000000002',
@@ -1076,8 +1076,8 @@ export const mockOperators: Operator[] = [
     assigned_count: 8,
     completed_count: 94,
     is_active: true,
-    assigned_form_ids: ['f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005'],
-    assigned_forms: ['ews_certificate', 'land_records_7_12', 'driving_licence_rto']
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000004'],
+    assigned_forms: ['land_records_7_12']
   },
   {
     id: 'b0000000-0000-0000-0000-000000000003',
@@ -1088,8 +1088,8 @@ export const mockOperators: Operator[] = [
     assigned_count: 15,
     completed_count: 142,
     is_active: true,
-    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000006'],
-    assigned_forms: ['income_certificate', 'caste_ncl_certificate', 'land_records_7_12', 'neet_exam']
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000006'],
+    assigned_forms: ['caste_ncl_certificate', 'neet_exam']
   },
   {
     id: 'b0000000-0000-0000-0000-000000000004',
@@ -1100,8 +1100,8 @@ export const mockOperators: Operator[] = [
     assigned_count: 5,
     completed_count: 87,
     is_active: true,
-    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000006'],
-    assigned_forms: ['income_certificate', 'ews_certificate', 'caste_ncl_certificate', 'land_records_7_12', 'driving_licence_rto', 'neet_exam']
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000005'],
+    assigned_forms: ['driving_licence_rto']
   },
 ];
 

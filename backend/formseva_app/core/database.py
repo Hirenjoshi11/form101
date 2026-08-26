@@ -417,28 +417,21 @@ class DatabaseStore:
                 "updated_at": datetime.now(timezone.utc)
             }
 
-        # Seed Operator <-> Form Authorization Assignments
+        # Seed Operator <-> Form Authorization Assignments (Dedicated 1:1 Specialization)
         initial_assignments = [
-            # Vicky: Income, EWS, NCL
+            # Vicky (Ahmedabad) -> Income Certificate & EWS Certificate
             {"op_id": "b0000000-0000-0000-0000-000000000001", "form_id": "f0000000-0000-0000-0000-000000000001"},
             {"op_id": "b0000000-0000-0000-0000-000000000001", "form_id": "f0000000-0000-0000-0000-000000000002"},
-            {"op_id": "b0000000-0000-0000-0000-000000000001", "form_id": "f0000000-0000-0000-0000-000000000003"},
-            # Nikhil: EWS, Land Records, Driving Licence
-            {"op_id": "b0000000-0000-0000-0000-000000000002", "form_id": "f0000000-0000-0000-0000-000000000002"},
+
+            # Nikhil (Vadodara) -> 7/12 & 8-A Land Record Extracts (AnyRoR)
             {"op_id": "b0000000-0000-0000-0000-000000000002", "form_id": "f0000000-0000-0000-0000-000000000004"},
-            {"op_id": "b0000000-0000-0000-0000-000000000002", "form_id": "f0000000-0000-0000-0000-000000000005"},
-            # Dhulo: Income, NCL, Land Records, NEET
-            {"op_id": "b0000000-0000-0000-0000-000000000003", "form_id": "f0000000-0000-0000-0000-000000000001"},
+
+            # Dhulo (Surat) -> Non-Creamy Layer (NCL) / SEBC & NEET UG Registration
             {"op_id": "b0000000-0000-0000-0000-000000000003", "form_id": "f0000000-0000-0000-0000-000000000003"},
-            {"op_id": "b0000000-0000-0000-0000-000000000003", "form_id": "f0000000-0000-0000-0000-000000000004"},
             {"op_id": "b0000000-0000-0000-0000-000000000003", "form_id": "f0000000-0000-0000-0000-000000000006"},
-            # Loy: All 6 forms
-            {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000001"},
-            {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000002"},
-            {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000003"},
-            {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000004"},
+
+            # Loy (Rajkot) -> Driving / Learner Licence Assistance (Sarathi RTO)
             {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000005"},
-            {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000006"},
         ]
         for a in initial_assignments:
             aid = str(uuid.uuid4())
