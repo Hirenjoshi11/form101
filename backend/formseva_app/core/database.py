@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
+from formseva_app.core.security import get_password_hash
 
 # In-Memory Database Store for Instant Local Execution & Testing, with Supabase Structure
 class DatabaseStore:
@@ -28,18 +29,20 @@ class DatabaseStore:
         self.seed_data()
 
     def seed_data(self):
-        # 1. Admin
+        # 1. Admin (Pre-provisioned staff record with verified password credential)
         admin_id = "a0000000-0000-0000-0000-000000000001"
         self.admins[admin_id] = {
             "id": admin_id,
             "full_name": "Gujarat Seva Admin",
             "email": "admin@formseva.gujarat.gov.in",
+            "password_hash": get_password_hash("Admin@FormSeva2026!"),
             "role": "super_admin",
             "is_active": True,
             "created_at": datetime.now(timezone.utc)
         }
 
-        # 2. 4 Seed Operators
+        # 2. 4 Seed Operators (Pre-provisioned staff records with verified credentials)
+        default_op_hash = get_password_hash("Operator@123!")
         operators_data = [
             {"id": "b0000000-0000-0000-0000-000000000001", "full_name": "Vicky", "email": "vicky.operator@formseva.in", "phone": "+91 98250 11223", "district": "Ahmedabad", "assigned_count": 12, "completed_count": 110},
             {"id": "b0000000-0000-0000-0000-000000000002", "full_name": "Nikhil", "email": "nikhil.operator@formseva.in", "phone": "+91 98251 22334", "district": "Vadodara", "assigned_count": 8, "completed_count": 94},
@@ -49,6 +52,7 @@ class DatabaseStore:
         for op in operators_data:
             self.operators[op["id"]] = {
                 **op,
+                "password_hash": default_op_hash,
                 "created_by_admin_id": admin_id,
                 "is_active": True,
                 "created_at": datetime.now(timezone.utc)

@@ -39,6 +39,7 @@ def test_auth_citizen_and_operator_tokens():
     # Admin Login
     admin_res = client.post("/api/v1/auth/login", json={
         "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!",
         "role": "admin"
     })
     assert admin_res.status_code == 200
@@ -81,6 +82,7 @@ def test_end_to_end_submission_and_otp_flow():
     # 2. Operator logs in and views queue
     op_token = client.post("/api/v1/auth/login", json={
         "email": "vicky.operator@formseva.in",
+        "password": "Operator@123!",
         "role": "operator"
     }).json()["access_token"]
     op_headers = {"Authorization": f"Bearer {op_token}"}
@@ -148,6 +150,7 @@ def test_stripe_payment_simulation():
 def test_admin_stats_and_operator_management():
     admin_token = client.post("/api/v1/auth/login", json={
         "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!",
         "role": "admin"
     }).json()["access_token"]
     headers = {"Authorization": f"Bearer {admin_token}"}
@@ -203,6 +206,7 @@ def test_driving_licence_payment_snapshot_is_1000():
     # 3. Verify Operator views submission
     op_token = client.post("/api/v1/auth/login", json={
         "email": "vicky.operator@formseva.in",
+        "password": "Operator@123!",
         "role": "operator"
     }).json()["access_token"]
     op_headers = {"Authorization": f"Bearer {op_token}"}
@@ -234,6 +238,7 @@ def test_rejection_and_resubmission_workflow():
     # Operator logs in and rejects with reason
     op_token = client.post("/api/v1/auth/login", json={
         "email": "nikhil.operator@formseva.in",
+        "password": "Operator@123!",
         "role": "operator"
     }).json()["access_token"]
     op_headers = {"Authorization": f"Bearer {op_token}"}
@@ -262,6 +267,7 @@ def test_operator_form_eligibility_and_security():
     """Verify operator form eligibility and backend 403 authorization check."""
     admin_token = client.post("/api/v1/auth/login", json={
         "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!",
         "role": "admin"
     }).json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
@@ -286,6 +292,7 @@ def test_admin_toggle_form_active_status():
     """Verify that toggling form active status hides/shows it from public listing without deleting the form."""
     admin_token = client.post("/api/v1/auth/login", json={
         "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!",
         "role": "admin"
     }).json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
@@ -311,4 +318,53 @@ def test_admin_toggle_form_active_status():
     # 5. Public forms list now includes income_certificate again
     restored_forms = client.get("/api/v1/forms?active_only=true").json()
     assert any(f["slug"] == "income_certificate" for f in restored_forms)
+
+def test_phase1_security_auth_hardening():
+    """Verify Phase 1 Security Fixes: FS-C1, FS-C2, FS-H5, FS-C3."""
+    
+    # 1. Staff requires password credential (FS-C1)
+    admin_bad_pw = client.post("/api/v1/auth/login", json={
+        "email": "admin@formseva.gujarat.gov.in",
+        "password": "WrongPassword123!"
+    })
+    assert admin_bad_pw.status_code == 401
+    
+    admin_good_pw = client.post("/api/v1/auth/login", json={
+        "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!"
+    })
+    assert admin_good_pw.status_code == 200
+    assert admin_good_pw.json()["user"]["role"] == "admin"
+    admin_token = admin_good_pw.json()["access_token"]
+    
+    # 2. Client-supplied role tampering resistance (FS-C1)
+    # An unauthorized citizen attempting to claim role='admin' must still be assigned role='citizen'
+    attacker_login = client.post("/api/v1/auth/login", json={
+        "email": "attacker@gmail.com",
+        "role": "admin"  # Client claims admin
+    })
+    assert attacker_login.status_code == 200
+    assert attacker_login.json()["user"]["role"] == "citizen" # Server forces citizen
+    
+    # 3. Server-side session revocation & logout (FS-H5)
+    test_cit = client.post("/api/v1/auth/login", json={
+        "email": "logout.test@example.com",
+        "full_name": "Logout Tester"
+    }).json()
+    cit_token = test_cit["access_token"]
+    cit_headers = {"Authorization": f"Bearer {cit_token}"}
+    
+    # Profile accessible before logout
+    me_res = client.get("/api/v1/auth/me", headers=cit_headers)
+    assert me_res.status_code == 200
+    
+    # Logout revokes JTI on server
+    logout_res = client.post("/api/v1/auth/logout", headers=cit_headers)
+    assert logout_res.status_code == 200
+    
+    # Subsequent access with same token is rejected (401 Revoked)
+    post_logout_me = client.get("/api/v1/auth/me", headers=cit_headers)
+    assert post_logout_me.status_code == 401
+    assert "revoked" in post_logout_me.json()["detail"].lower()
+
 

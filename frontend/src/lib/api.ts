@@ -29,14 +29,18 @@ export class ApiService {
   }
 
   // AUTH
-  static async login(email: string, role: string = 'citizen', fullName?: string, phone?: string) {
+  static async login(email: string, role: string = 'citizen', fullName?: string, phone?: string, password?: string) {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role, full_name: fullName, phone }),
+        credentials: 'include',
+        body: JSON.stringify({ email, role, full_name: fullName, phone, password }),
       });
-      if (!res.ok) throw new Error('Login failed');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Login failed');
+      }
       const data = await res.json();
       if (typeof window !== 'undefined') {
         localStorage.setItem('formseva_token', data.access_token);
@@ -44,7 +48,6 @@ export class ApiService {
       }
       return data;
     } catch (e) {
-      // Only fall back to mock auth in development mode
       if (process.env.NODE_ENV === 'development') {
         console.warn('API connection fallback, using local mock auth (DEV ONLY)');
         const mockUser = { id: 'c0000000-0000-0000-0000-000000000001', email, role, full_name: fullName || 'નાગરિક (Citizen)' };
@@ -58,14 +61,18 @@ export class ApiService {
     }
   }
 
-  static async googleLogin(email: string, fullName?: string, phone?: string, avatarUrl?: string) {
+  static async googleLogin(email: string, fullName?: string, phone?: string, avatarUrl?: string, idToken?: string) {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, full_name: fullName, phone, avatar_url: avatarUrl }),
+        credentials: 'include',
+        body: JSON.stringify({ email, full_name: fullName, phone, avatar_url: avatarUrl, id_token: idToken }),
       });
-      if (!res.ok) throw new Error('Google authentication failed');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Google authentication failed');
+      }
       const data = await res.json();
       if (typeof window !== 'undefined') {
         localStorage.setItem('formseva_token', data.access_token);
@@ -73,7 +80,6 @@ export class ApiService {
       }
       return data;
     } catch (e) {
-      // Only fall back to mock auth in development mode
       if (process.env.NODE_ENV === 'development') {
         console.warn('API fallback for Google Auth (DEV ONLY)');
         const mockUser = {
@@ -91,6 +97,23 @@ export class ApiService {
         return { access_token: 'mock-google-token', user: mockUser };
       }
       throw e;
+    }
+  }
+
+  static async logout(): Promise<void> {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        credentials: 'include',
+      });
+    } catch (e) {
+      console.warn('Logout request failed or server unreachable:', e);
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('formseva_token');
+        localStorage.removeItem('formseva_user');
+      }
     }
   }
 
@@ -125,12 +148,6 @@ export class ApiService {
     if (typeof window === 'undefined') return null;
     const userStr = localStorage.getItem('formseva_user');
     return userStr ? JSON.parse(userStr) : null;
-  }
-
-  static logout() {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('formseva_token');
-    localStorage.removeItem('formseva_user');
   }
 
   static getDemoUsers(): UserProfile[] {

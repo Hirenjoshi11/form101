@@ -30,7 +30,8 @@ class UserResponse(UserBase):
 
 class AuthRequest(BaseModel):
     email: EmailStr
-    role: str = "citizen" # 'citizen', 'operator', 'admin'
+    password: Optional[str] = None
+    role: Optional[str] = "citizen"  # Optional client hint; server-side database lookup determines true role (FS-C1)
     full_name: Optional[str] = None
     phone: Optional[str] = None
 
@@ -40,8 +41,9 @@ class AuthResponse(BaseModel):
     user: Dict[str, Any]
 
 class GoogleAuthRequest(BaseModel):
-    """Typed schema for Google OAuth login — replaces raw dict for input validation."""
-    email: EmailStr
+    """Typed schema for Google OAuth login (FS-C2)."""
+    id_token: Optional[str] = None
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     avatar_url: Optional[str] = None

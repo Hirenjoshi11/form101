@@ -34,10 +34,17 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await ApiService.login(email, password || 'password123', email.split('@')[0], '9825044551');
-      router.push('/track');
-    } catch (e) {
-      setError('Login failed — please check credentials');
+      const authRes = await ApiService.login(email.trim(), 'citizen', email.split('@')[0], '9825044551', password);
+      const userRole = authRes.user?.role || 'citizen';
+      if (userRole === 'admin') {
+        router.push('/admin');
+      } else if (userRole === 'operator') {
+        router.push('/operator');
+      } else {
+        router.push('/track');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Login failed — please check email/password');
     } finally {
       setLoading(false);
     }
@@ -47,17 +54,16 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError('');
     try {
-      // Direct Google OAuth flow simulation / endpoint integration
       const googleProfile = {
         token: `google_oauth_${Date.now()}`,
         email: 'citizen.gujarat@gmail.com',
         name: 'Rameshchandra B. Patel'
       };
       
-      const user = await ApiService.googleLogin(googleProfile.token, googleProfile.email, googleProfile.name, '9825044551');
+      const authRes = await ApiService.googleLogin(googleProfile.email, googleProfile.name, '9825044551', undefined, googleProfile.token);
       router.push('/track');
-    } catch (e) {
-      setError('Google Sign-In failed');
+    } catch (e: any) {
+      setError(e.message || 'Google Sign-In failed');
     } finally {
       setGoogleLoading(false);
     }
@@ -71,14 +77,14 @@ export default function LoginPage() {
         await ApiService.login('citizen@formseva.in', 'citizen', 'Rameshchandra B. Patel', '9825044551');
         router.push('/track');
       } else if (type === 'operator') {
-        await ApiService.login('operator@formseva.in', 'operator', 'Vicky (Operator Ahmedabad)', '9825011223');
+        await ApiService.login('vicky.operator@formseva.in', 'operator', 'Vicky', '9825011223', 'Operator@123!');
         router.push('/operator');
       } else if (type === 'admin') {
-        await ApiService.login('admin@formseva.gujarat.gov.in', 'admin', 'Gujarat Seva Admin', '9800000001');
+        await ApiService.login('admin@formseva.gujarat.gov.in', 'admin', 'Gujarat Seva Admin', '9800000001', 'Admin@FormSeva2026!');
         router.push('/admin');
       }
-    } catch (e) {
-      setError('Demo login failed');
+    } catch (e: any) {
+      setError(e.message || 'Demo login failed');
     } finally {
       setLoading(false);
     }
