@@ -203,7 +203,7 @@ def test_driving_licence_payment_snapshot_is_1000():
     }, headers=headers).json()
     assert pi_res["amount_inr"] == 1150.00
     
-    # 3. Verify Operator views submission
+    # 3. Verify Operator views unassigned submission -> masked phone (FS-H6)
     op_token = client.post("/api/v1/auth/login", json={
         "email": "vicky.operator@formseva.in",
         "password": "Operator@123!",
@@ -211,10 +211,15 @@ def test_driving_licence_payment_snapshot_is_1000():
     }).json()["access_token"]
     op_headers = {"Authorization": f"Bearer {op_token}"}
     
-    op_detail = client.get(f"/api/v1/submissions/{dl_sub['id']}", headers=op_headers).json()
-    assert op_detail["service_fee"] == 1000.00
-    assert op_detail["total_fee"] == 1150.00
-    assert op_detail["user_phone"] == "9898011223"
+    op_detail_unassigned = client.get(f"/api/v1/submissions/{dl_sub['id']}", headers=op_headers).json()
+    assert op_detail_unassigned["service_fee"] == 1000.00
+    assert op_detail_unassigned["total_fee"] == 1150.00
+    assert "XXXXXX1223" in op_detail_unassigned["user_phone"]
+    
+    # 4. Operator starts filing -> full phone is unmasked for processing
+    client.post(f"/api/v1/operator/submissions/{dl_sub['id']}/start", headers=op_headers)
+    op_detail_assigned = client.get(f"/api/v1/submissions/{dl_sub['id']}", headers=op_headers).json()
+    assert op_detail_assigned["user_phone"] == "9898011223"
 
 def test_rejection_and_resubmission_workflow():
     """Verify that rejected applications can be corrected and resubmitted without extra charge."""
@@ -366,5 +371,68 @@ def test_phase1_security_auth_hardening():
     post_logout_me = client.get("/api/v1/auth/me", headers=cit_headers)
     assert post_logout_me.status_code == 401
     assert "revoked" in post_logout_me.json()["detail"].lower()
+
+def test_phase2_unified_authorization_and_access_control():
+    """Verify Phase 2 Access Control: FS-H1, FS-H3, FS-H6."""
+    # 1. Setup Citizen A and Citizen B
+    cit_a_token = client.post("/api/v1/auth/login", json={"email": "citizen.alice@test.in", "full_name": "Alice Patel"}).json()["access_token"]
+    cit_b_token = client.post("/api/v1/auth/login", json={"email": "citizen.bob@test.in", "full_name": "Bob Shah"}).json()["access_token"]
+    headers_a = {"Authorization": f"Bearer {cit_a_token}"}
+    headers_b = {"Authorization": f"Bearer {cit_b_token}"}
+    
+    # Citizen A creates application with Aadhaar and Phone
+    sub_a = client.post("/api/v1/submissions", json={
+        "form_slug": "income_certificate",
+        "field_values": {
+            "applicant_name": "Alice Patel",
+            "mobile_number": "9825012345",
+            "aadhaar_number": "123456789012"
+        }
+    }, headers=headers_a).json()
+    sub_a_id = sub_a["id"]
+    
+    # 2. Citizen B attempts to view Citizen A's application -> 403 Forbidden
+    cross_tenant_view = client.get(f"/api/v1/submissions/{sub_a_id}", headers=headers_b)
+    assert cross_tenant_view.status_code == 403
+    
+    # 3. Citizen B attempts to submit OTP for Citizen A's application -> 403 Forbidden
+    cross_tenant_otp = client.post("/api/v1/otp/submit", json={
+        "submission_id": sub_a_id,
+        "otp_code": "123456"
+    }, headers=headers_b)
+    assert cross_tenant_otp.status_code in (403, 404)
+    
+    # 4. Operator Vicky logs in (assigned to Ahmedabad / Income Certificate)
+    vicky_token = client.post("/api/v1/auth/login", json={
+        "email": "vicky.operator@formseva.in",
+        "password": "Operator@123!"
+    }).json()["access_token"]
+    vicky_headers = {"Authorization": f"Bearer {vicky_token}"}
+    
+    # 5. Operator Nikhil logs in
+    nikhil_token = client.post("/api/v1/auth/login", json={
+        "email": "nikhil.operator@formseva.in",
+        "password": "Operator@123!"
+    }).json()["access_token"]
+    nikhil_headers = {"Authorization": f"Bearer {nikhil_token}"}
+    
+    # Vicky starts filing -> becomes assigned operator
+    vicky_start = client.post(f"/api/v1/operator/submissions/{sub_a_id}/start", headers=vicky_headers)
+    assert vicky_start.status_code == 200
+    
+    # 6. Unassigned Operator Nikhil attempts to update status on Vicky's submission -> 403 Forbidden (FS-H1)
+    nikhil_hijack = client.post(f"/api/v1/operator/submissions/{sub_a_id}/update-status", json={
+        "status": "approved"
+    }, headers=nikhil_headers)
+    assert nikhil_hijack.status_code == 403
+    assert "not the assigned operator" in nikhil_hijack.json()["detail"].lower()
+    
+    # 7. Unassigned Operator Nikhil attempts to trigger OTP on Vicky's submission -> 403 Forbidden (FS-H3)
+    nikhil_otp = client.post("/api/v1/otp/trigger", json={
+        "submission_id": sub_a_id,
+        "otp_purpose_en": "Malicious OTP Prompt"
+    }, headers=nikhil_headers)
+    assert nikhil_otp.status_code == 403
+
 
 

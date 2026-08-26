@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from formseva_app.models.schemas import SubmissionResponse, SubmissionStatusUpdate
 from formseva_app.core.database import db
-from formseva_app.core.security import require_role
+from formseva_app.core.security import require_role, check_submission_access
 from formseva_app.api.submissions import _format_submission_response
 
 router = APIRouter(prefix="/operator", tags=["Operator Workbench"])
@@ -25,10 +25,8 @@ def get_operator_assigned_forms(current_user: dict = Depends(require_role(["oper
 @router.get("/queue", response_model=List[SubmissionResponse], dependencies=[Depends(require_role(["operator", "admin"]))])
 def get_operator_queue(current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Returns submissions in the operator queue:
-    - If admin: returns all submissions.
-    - If operator: returns only submissions for forms assigned to this operator,
-      either assigned to them or unassigned in their assigned forms pool.
+    Returns submissions in the operator queue (FS-H6).
+    Applies PII masking for unassigned submissions.
     """
     operator_id = current_user["id"]
     is_admin = current_user.get("role") == "admin"
@@ -46,22 +44,44 @@ def get_operator_queue(current_user: dict = Depends(require_role(["operator", "a
         ]
     
     subs.sort(key=lambda s: s["submitted_at"], reverse=True)
-    return [_format_submission_response(s) for s in subs]
+    return [_format_submission_response(s, requester=current_user) for s in subs]
 
 @router.post("/submissions/{submission_id}/start", dependencies=[Depends(require_role(["operator", "admin"]))])
 def start_filing_submission(submission_id: str, current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Operator begins filing on the Gujarat government portal.
-    Triggers the required in-app notification to the citizen naming the operator.
+    Operator begins filing on the Gujarat government portal (FS-H1).
+    Enforces form-eligibility and single-operator assignment lock.
     """
     sub = db.submissions.get(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
     
+    is_admin = current_user.get("role") == "admin"
+    operator_id = current_user["id"]
+    
+    if not is_admin:
+        # Check operator eligibility for this form category
+        is_form_eligible = any(
+            a["operator_id"] == operator_id and a["form_id"] == sub["form_id"] and a.get("is_active", True)
+            for a in db.operator_form_assignments.values()
+        )
+        if not is_form_eligible:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: You are not certified/eligible to process this form category."
+            )
+        
+        # Check if already actively in progress with a different operator
+        if sub.get("status") == "operator_filling" and sub.get("assigned_operator_id") and sub["assigned_operator_id"] != operator_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: This application is already actively being processed by another operator."
+            )
+    
     operator = db.operators.get(current_user["id"])
     operator_name = operator.get("full_name", current_user.get("full_name", "ઓપરેટર"))
     
-    # Update status
+    # Update status and assign to current operator
     sub["assigned_operator_id"] = current_user["id"]
     sub["status"] = "operator_filling"
     sub["operator_started_at"] = datetime.now(timezone.utc)
@@ -77,7 +97,7 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
         "title_hi": f"ऑपरेटर {operator_name} आपका फॉर्म भर रहे हैं",
         "title_en": f"Operator {operator_name} is processing your application",
         "message_gu": f"ઓપરેટર {operator_name} દ્વારા પોર્ટલ પર તમારું ફોર્મ ભરવાનું શરૂ થયું છે. સરકારી પોર્ટલ તરફથી SMS દ્વારા OTP આવે ત્યારે એપ્લિકેશનમાં દાખલ કરવા તૈયાર રહેશો.",
-        "message_hi": f"ऑपरेटर {operator_name} द्वारा पोर्टल पर आपका फॉर्म भरना शुरू हुआ है। OTP आने पर ऐप में दर्ज करें।",
+        "message_hi": f"ऑपरेटर {operator_name} દ્વારા પોર્ટલ પર તમારું ફોર્મ ભરવાનું શરૂ થયું છે. OTP આવે ત્યારે એપ્લિકેશનમાં દાખલ કરવા તૈયાર રહેશો.",
         "message_en": f"Operator {operator_name} has started filing your application on the government portal. Please be ready with the OTP sent to your phone.",
         "notification_type": "status_change",
         "is_read": False,
@@ -96,14 +116,15 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
         "created_at": datetime.now(timezone.utc)
     })
     
-    return {"message": "Started filing successfully", "submission": _format_submission_response(sub)}
+    return {"message": "Started filing successfully", "submission": _format_submission_response(sub, requester=current_user)}
 
 @router.post("/submissions/{submission_id}/update-status", dependencies=[Depends(require_role(["operator", "admin"]))])
 def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate, current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """Update application filing status (e.g. submitted_to_govt_portal, approved, rejected, correction_required)."""
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
+    """
+    Update application filing status (FS-H1).
+    Enforces assigned operator authorization.
+    """
+    sub = check_submission_access(submission_id, current_user, require_write=True, require_assigned_operator=True)
     
     old_status = sub["status"]
     sub["status"] = payload.status

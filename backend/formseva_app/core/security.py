@@ -143,5 +143,115 @@ def verify_google_id_token(token_str: str) -> Optional[Dict[str, Any]]:
         id_info = id_token.verify_oauth2_token(token_str, request, client_id)
         return id_info
     except Exception as e:
-        # If token is not a valid Google ID token or verification fails
         return None
+
+# ── Unified Resource Access Control (Phase 2 / FS-H1, FS-H3) ──
+def check_submission_access(
+    submission_id: str,
+    current_user: Dict[str, Any],
+    require_write: bool = False,
+    require_assigned_operator: bool = False,
+) -> Dict[str, Any]:
+    """
+    Unified Reusable Authorization Policy for Submissions.
+    - Citizen: Must own the submission (sub["user_id"] == current_user["id"]).
+    - Operator:
+      - Read Access: Must be assigned OR form-eligible for this form type.
+      - Action/Write Access: Must be assigned to this submission AND form-eligible.
+    - Admin: Full system oversight.
+    """
+    from formseva_app.core.database import db
+
+    sub = db.submissions.get(submission_id)
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application submission not found."
+        )
+
+    role = current_user.get("role", "citizen")
+    user_id = current_user.get("id")
+
+    # 1. Admin: Unrestricted Access
+    if role == "admin":
+        return sub
+
+    # 2. Citizen: Strict Resource Ownership Check
+    if role == "citizen":
+        if sub.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: You are not authorized to view or modify this application."
+            )
+        return sub
+
+    # 3. Operator: Strict Assignment and Form-Eligibility Check
+    if role == "operator":
+        operator_id = user_id
+        is_assigned = (sub.get("assigned_operator_id") == operator_id)
+        
+        # Check operator certified form eligibility
+        is_form_eligible = any(
+            a.get("operator_id") == operator_id and 
+            a.get("form_id") == sub.get("form_id") and 
+            a.get("is_active", True)
+            for a in db.operator_form_assignments.values()
+        )
+
+        if require_write or require_assigned_operator:
+            if not is_assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access forbidden: You are not the assigned operator for this application."
+                )
+            if not is_form_eligible:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access forbidden: You are not certified/eligible to process this form category."
+                )
+        else:
+            # Read access: Operator must be assigned OR eligible for the form category
+            if not (is_assigned or is_form_eligible):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access forbidden: You are not authorized to access applications in this form category."
+                )
+        return sub
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access forbidden: Unknown or unauthorized role."
+    )
+
+# ── PII Minimization & Masking Helpers (FS-H6) ──
+def mask_phone(phone: Optional[str]) -> str:
+    """Masks phone number for unassigned operator views (e.g. +91 XXXXXX1234)."""
+    if not phone:
+        return ""
+    digits = "".join(ch for ch in str(phone) if ch.isdigit())
+    if len(digits) >= 10:
+        return f"+91 XXXXXX{digits[-4:]}"
+    elif len(digits) >= 4:
+        return f"XXXXXX{digits[-4:]}"
+    return "XXXX"
+
+def mask_aadhaar(aadhaar: Optional[str]) -> str:
+    """Masks 12-digit Aadhaar number to display only the last 4 digits."""
+    if not aadhaar:
+        return ""
+    digits = "".join(ch for ch in str(aadhaar) if ch.isdigit())
+    if len(digits) >= 12:
+        return f"XXXX-XXXX-{digits[-4:]}"
+    elif len(digits) >= 4:
+        return f"XXXX-{digits[-4:]}"
+    return "XXXX"
+
+def mask_pan(pan: Optional[str]) -> str:
+    """Masks PAN card to display only the last 4 characters."""
+    if not pan:
+        return ""
+    clean = str(pan).strip().upper()
+    if len(clean) >= 5:
+        return f"XXXXX{clean[-4:]}"
+    return "XXXX"
+

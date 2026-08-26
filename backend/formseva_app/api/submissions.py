@@ -1,15 +1,22 @@
 import uuid
 import random
 from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
 from formseva_app.models.schemas import SubmissionCreate, SubmissionResponse, SubmissionStatusUpdate, SubmissionResubmitRequest
 from formseva_app.core.database import db
-from formseva_app.core.security import get_current_user, require_role
+from formseva_app.core.security import (
+    get_current_user,
+    require_role,
+    check_submission_access,
+    mask_phone,
+    mask_aadhaar,
+    mask_pan,
+)
 
 router = APIRouter(prefix="/submissions", tags=["Citizen Submissions"])
 
-def _format_submission_response(sub: dict) -> SubmissionResponse:
+def _format_submission_response(sub: dict, requester: Optional[dict] = None) -> SubmissionResponse:
     form = db.forms.get(sub["form_id"], {})
     user = db.users.get(sub["user_id"], {})
     operator = db.operators.get(sub.get("assigned_operator_id", ""), {}) if sub.get("assigned_operator_id") else {}
@@ -23,7 +30,28 @@ def _format_submission_response(sub: dict) -> SubmissionResponse:
         if otp["submission_id"] == sub["id"] and otp["status"] == "requested"
     ), None)
     
-    user_phone = sub.get("user_phone") or user.get("phone", "")
+    raw_phone = sub.get("user_phone") or user.get("phone", "")
+    raw_field_values = dict(db.submission_field_values.get(sub["id"], {}))
+    
+    # FS-H6: PII Minimization for unassigned operator queue views
+    is_unassigned_operator = (
+        requester is not None and 
+        requester.get("role") == "operator" and 
+        sub.get("assigned_operator_id") != requester.get("id")
+    )
+    
+    if is_unassigned_operator:
+        user_phone = mask_phone(raw_phone)
+        for key in list(raw_field_values.keys()):
+            val = str(raw_field_values[key])
+            if "aadhaar" in key.lower():
+                raw_field_values[key] = mask_aadhaar(val)
+            elif "pan" in key.lower():
+                raw_field_values[key] = mask_pan(val)
+            elif "mobile" in key.lower() or "phone" in key.lower():
+                raw_field_values[key] = mask_phone(val)
+    else:
+        user_phone = raw_phone
     
     return SubmissionResponse(
         id=sub["id"],
@@ -52,7 +80,7 @@ def _format_submission_response(sub: dict) -> SubmissionResponse:
         completed_at=sub.get("completed_at"),
         certificate_url=sub.get("certificate_url"),
         certificate_file_name=sub.get("certificate_file_name"),
-        field_values=db.submission_field_values.get(sub["id"], {}),
+        field_values=raw_field_values,
         documents=docs,
         active_otp_request=active_otp
     )
@@ -167,15 +195,10 @@ def resubmit_submission(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Citizen resubmits a rejected/correction-required application.
-    Updates the existing application in place without creating duplicate records or charging new fees.
+    Citizen resubmits a rejected/correction-required application (FS-H1).
+    Enforces citizen ownership and updates the existing application in place.
     """
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    
-    if current_user.get("role") == "citizen" and sub["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to resubmit this application")
+    sub = check_submission_access(submission_id, current_user, require_write=True)
     
     # Update field values
     if submission_id in db.submission_field_values:
@@ -219,7 +242,7 @@ def resubmit_submission(
         "created_at": datetime.now(timezone.utc)
     })
 
-    return _format_submission_response(sub)
+    return _format_submission_response(sub, requester=current_user)
 
 @router.get("/my", response_model=List[SubmissionResponse])
 def get_my_submissions(current_user: dict = Depends(get_current_user)):
@@ -227,39 +250,16 @@ def get_my_submissions(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     subs = [s for s in db.submissions.values() if s["user_id"] == user_id]
     subs.sort(key=lambda s: s["submitted_at"], reverse=True)
-    return [_format_submission_response(s) for s in subs]
+    return [_format_submission_response(s, requester=current_user) for s in subs]
 
 @router.get("/{submission_id}", response_model=SubmissionResponse)
 def get_submission_detail(submission_id: str, current_user: dict = Depends(get_current_user)):
     """
-    Get full details of a submission.
-    Enforces role-based visibility security:
-    - Citizen: only own applications.
-    - Operator: only applications assigned to them OR forms they are authorized to handle.
-    - Admin: all applications.
+    Get full details of a submission (FS-H1, FS-H6).
+    Enforces role-based visibility security and masks PII for unassigned operators.
     """
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    
-    role = current_user.get("role", "citizen")
-    
-    if role == "citizen":
-        if sub["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to view this application")
-    elif role == "operator":
-        operator_id = current_user["id"]
-        # Check if assigned to operator
-        is_assigned = (sub.get("assigned_operator_id") == operator_id)
-        # Check if operator is eligible for this form
-        is_eligible_for_form = any(
-            a["operator_id"] == operator_id and a["form_id"] == sub["form_id"] and a.get("is_active", True)
-            for a in db.operator_form_assignments.values()
-        )
-        if not (is_assigned or is_eligible_for_form):
-            raise HTTPException(status_code=403, detail="You are not authorized to access applications for this form/service.")
-    
-    return _format_submission_response(sub)
+    sub = check_submission_access(submission_id, current_user, require_write=False)
+    return _format_submission_response(sub, requester=current_user)
 
 @router.post("/{submission_id}/upload-doc")
 def upload_submission_document(
@@ -272,12 +272,7 @@ def upload_submission_document(
     Direct document upload endpoint.
     Complies with DPDP Act 2023 - files are indexed per submission vault.
     """
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    
-    if current_user.get("role") == "citizen" and sub["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to upload files for this application")
+    sub = check_submission_access(submission_id, current_user, require_write=True)
     
     # ── File Security Validation ──
     MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB

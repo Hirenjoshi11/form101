@@ -2,25 +2,24 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import hashlib
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from formseva_app.models.schemas import OtpTriggerRequest, OtpSubmitRequest
 from formseva_app.core.database import db
-from formseva_app.core.security import get_current_user, require_role
+from formseva_app.core.security import get_current_user, require_role, check_submission_access
 
 router = APIRouter(prefix="/otp", tags=["In-App Assisted OTP Relay"])
 
 @router.post("/trigger", dependencies=[Depends(require_role(["operator", "admin"]))])
 def trigger_otp_request(payload: OtpTriggerRequest, current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Operator triggers an in-app OTP prompt to the citizen.
+    Operator triggers an in-app OTP prompt to the citizen (FS-H3).
+    Enforces assigned operator authorization.
     Complies with Google Play & India DPDP Act 2023:
     - Never scrapes user SMS or phone logs
     - Citizen receives govt SMS on their phone and manually types it in-app
     - Only stores timestamp and status
     """
-    sub = db.submissions.get(payload.submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
+    sub = check_submission_access(payload.submission_id, current_user, require_write=True, require_assigned_operator=True)
     
     # Calculate sequence number
     existing_requests = [r for r in db.otp_requests.values() if r["submission_id"] == payload.submission_id]
@@ -82,24 +81,29 @@ def trigger_otp_request(payload: OtpTriggerRequest, current_user: dict = Depends
 @router.post("/submit")
 def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depends(get_current_user)):
     """
-    Citizen submits the OTP in the app.
+    Citizen submits the OTP in the app (FS-H3).
+    Strictly verifies citizen ownership of the application.
     The OTP code is hashed before storage — we NEVER store the raw OTP text.
-    Only the hash and verification metadata are persisted.
     """
-    otp_req = db.otp_requests.get(payload.otp_request_id)
+    otp_req = None
+    if payload.otp_request_id and payload.otp_request_id in db.otp_requests:
+        otp_req = db.otp_requests[payload.otp_request_id]
+    elif payload.submission_id:
+        otp_req = next((
+            r for r in db.otp_requests.values() 
+            if r["submission_id"] == payload.submission_id and r["status"] == "requested"
+        ), None)
+        
     if not otp_req:
         raise HTTPException(status_code=404, detail="Active OTP request not found")
     
     if otp_req["status"] != "requested":
         raise HTTPException(status_code=400, detail=f"OTP request is already in '{otp_req['status']}' state")
     
-    sub = db.submissions.get(otp_req["submission_id"])
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    
-    # Validate citizen ownership
-    if current_user.get("role") == "citizen" and sub["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Enforce Citizen Resource Ownership (FS-H3)
+    sub = check_submission_access(otp_req["submission_id"], current_user, require_write=True)
+    if current_user.get("role") != "admin" and sub["user_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied: Only the applicant citizen may submit the OTP.")
     
     # Update OTP status & submission status
     otp_req["status"] = "submitted_by_citizen"
@@ -118,7 +122,7 @@ def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depend
     db.audit_logs.append({
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
-        "actor_role": "citizen",
+        "actor_role": current_user.get("role", "citizen"),
         "action": "SUBMIT_IN_APP_OTP",
         "entity_type": "otp_requests",
         "entity_id": otp_req["id"],
@@ -132,12 +136,18 @@ def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depend
 
 @router.get("/active/{submission_id}")
 def get_active_otp_prompt(submission_id: str, current_user: dict = Depends(get_current_user)):
-    """Get active OTP prompt for a submission if any."""
+    """
+    Get active OTP prompt for a submission if any (FS-H3).
+    Enforces authorization check before revealing OTP requests.
+    """
+    check_submission_access(submission_id, current_user, require_write=False)
+    
     active_otp = next((
         otp for otp in db.otp_requests.values() 
         if otp["submission_id"] == submission_id and otp["status"] in ("requested", "submitted_by_citizen")
     ), None)
-    # Strip sensitive hash from response
+    
     if active_otp and "otp_code_hash" in active_otp:
         active_otp = {k: v for k, v in active_otp.items() if k != "otp_code_hash"}
     return {"active_otp": active_otp}
+

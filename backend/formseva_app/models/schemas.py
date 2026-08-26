@@ -201,7 +201,8 @@ class OtpTriggerRequest(BaseModel):
     otp_purpose_en: Optional[str] = "For Digital Gujarat Portal Login"
 
 class OtpSubmitRequest(BaseModel):
-    otp_request_id: str
+    otp_request_id: Optional[str] = None
+    submission_id: Optional[str] = None
     otp_code: str # Citizen enters 4 or 6 digit code received via SMS
 
 class SubmissionStatusUpdate(BaseModel):
