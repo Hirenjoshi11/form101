@@ -962,6 +962,26 @@ export class ApiService {
   }
 
   static async assignOperatorForm(operatorId: string, formId: string) {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('formseva_operators_v2');
+      if (stored) {
+        try {
+          const ops: Operator[] = JSON.parse(stored);
+          const updated = ops.map(op => {
+            if (op.id === operatorId) {
+              const currentIds = op.assigned_form_ids || [];
+              if (!currentIds.includes(formId)) {
+                return { ...op, assigned_form_ids: [...currentIds, formId] };
+              }
+            }
+            return op;
+          });
+          localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
+        } catch (e) {}
+      }
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/admin/operator-assignments`, {
         method: 'POST',
@@ -988,6 +1008,24 @@ export class ApiService {
   }
 
   static async removeOperatorAssignment(operatorId: string, formId?: string) {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('formseva_operators_v2');
+      if (stored) {
+        try {
+          const ops: Operator[] = JSON.parse(stored);
+          const updated = ops.map(op => {
+            if (op.id === operatorId) {
+              const currentIds = op.assigned_form_ids || [];
+              return { ...op, assigned_form_ids: currentIds.filter(id => id !== formId) };
+            }
+            return op;
+          });
+          localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
+        } catch (e) {}
+      }
+    }
+
     try {
       const url = formId
         ? `${API_BASE_URL}/admin/operator-assignments/${operatorId}?form_id=${encodeURIComponent(formId)}`
@@ -1017,10 +1055,54 @@ export class ApiService {
 
 // Fallback Mock Data for UI Resilience
 export const mockOperators: Operator[] = [
-  { id: 'b0000000-0000-0000-0000-000000000001', full_name: 'Vicky', email: 'vicky.operator@formseva.in', phone: '+91 98250 11223', district: 'Ahmedabad', assigned_count: 12, completed_count: 110, is_active: true },
-  { id: 'b0000000-0000-0000-0000-000000000002', full_name: 'Nikhil', email: 'nikhil.operator@formseva.in', phone: '+91 98251 22334', district: 'Vadodara', assigned_count: 8, completed_count: 94, is_active: true },
-  { id: 'b0000000-0000-0000-0000-000000000003', full_name: 'DHulo', email: 'dhulo.operator@formseva.in', phone: '+91 98252 33445', district: 'Surat', assigned_count: 15, completed_count: 142, is_active: true },
-  { id: 'b0000000-0000-0000-0000-000000000004', full_name: 'Loy', email: 'loy.operator@formseva.in', phone: '+91 98253 44556', district: 'Rajkot', assigned_count: 5, completed_count: 87, is_active: true },
+  {
+    id: 'b0000000-0000-0000-0000-000000000001',
+    full_name: 'Vicky',
+    email: 'vicky.operator@formseva.in',
+    phone: '+91 98250 11223',
+    district: 'Ahmedabad',
+    assigned_count: 12,
+    completed_count: 110,
+    is_active: true,
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003'],
+    assigned_forms: ['income_certificate', 'ews_certificate', 'caste_ncl_certificate']
+  },
+  {
+    id: 'b0000000-0000-0000-0000-000000000002',
+    full_name: 'Nikhil',
+    email: 'nikhil.operator@formseva.in',
+    phone: '+91 98251 22334',
+    district: 'Vadodara',
+    assigned_count: 8,
+    completed_count: 94,
+    is_active: true,
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005'],
+    assigned_forms: ['ews_certificate', 'land_records_7_12', 'driving_licence_rto']
+  },
+  {
+    id: 'b0000000-0000-0000-0000-000000000003',
+    full_name: 'DHulo',
+    email: 'dhulo.operator@formseva.in',
+    phone: '+91 98252 33445',
+    district: 'Surat',
+    assigned_count: 15,
+    completed_count: 142,
+    is_active: true,
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000006'],
+    assigned_forms: ['income_certificate', 'caste_ncl_certificate', 'land_records_7_12', 'neet_exam']
+  },
+  {
+    id: 'b0000000-0000-0000-0000-000000000004',
+    full_name: 'Loy',
+    email: 'loy.operator@formseva.in',
+    phone: '+91 98253 44556',
+    district: 'Rajkot',
+    assigned_count: 5,
+    completed_count: 87,
+    is_active: true,
+    assigned_form_ids: ['f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000006'],
+    assigned_forms: ['income_certificate', 'ews_certificate', 'caste_ncl_certificate', 'land_records_7_12', 'driving_licence_rto', 'neet_exam']
+  },
 ];
 
 export const mockForms: CertificateForm[] = [

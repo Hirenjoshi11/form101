@@ -232,17 +232,40 @@ export default function AdminPage() {
   };
 
   const handleToggleOperatorFormAssignment = async (operatorId: string, formId: string, isAssigned: boolean) => {
+    // 1. Optimistic immediate state update for instantaneous responsive clicking
+    setOperators(prevOps =>
+      prevOps.map(op => {
+        if (op.id === operatorId) {
+          const currentIds = op.assigned_form_ids || [];
+          const currentForms = op.assigned_forms || [];
+          const formObj = formsList.find(f => f.id === formId);
+          const formSlug = formObj?.slug;
+
+          const newIds = isAssigned
+            ? currentIds.filter(id => id !== formId)
+            : [...currentIds, formId];
+
+          const newForms = isAssigned
+            ? currentForms.filter(s => s !== formSlug)
+            : formSlug ? [...currentForms, formSlug] : currentForms;
+
+          return { ...op, assigned_form_ids: newIds, assigned_forms: newForms };
+        }
+        return op;
+      })
+    );
+
     try {
       if (isAssigned) {
         await ApiService.removeOperatorAssignment(operatorId, formId);
       } else {
         await ApiService.assignOperatorForm(operatorId, formId);
       }
-      showToast('Operator service assignments updated');
-      const ops = await ApiService.getOperators();
-      setOperators(ops);
+      showToast('Operator authorization matrix updated');
     } catch (e) {
       showToast('Failed to update operator assignment');
+      const ops = await ApiService.getOperators();
+      setOperators(ops);
     }
   };
 
