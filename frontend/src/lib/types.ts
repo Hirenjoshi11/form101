@@ -238,6 +238,8 @@ export interface AuditLogItem {
   entity_id: string;
   old_state?: any;
   new_state?: any;
+  client_ip?: string;
+  user_agent?: string;
   created_at: string;
 }
 
