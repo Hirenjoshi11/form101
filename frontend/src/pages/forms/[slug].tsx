@@ -211,8 +211,13 @@ export default function FormDetailPage() {
     language === 'gu' ? f.title_gu : language === 'hi' ? f.title_hi : f.title_en;
 
   const handleNext = () => {
-    // Basic phone validation on personal/applicant step
-    if (activeStepKey === 'applicant' || activeStepKey === 'candidate' || activeStepKey === 'personal') {
+    // Validate mobile number if field exists on current step
+    const currentFields = getFieldsForStep(activeStepKey);
+    const hasMobileField = currentFields.some(f => 
+      f.field_key === 'mobile_number' || f.field_key === 'mobile' || f.field_key === 'phone'
+    );
+
+    if (hasMobileField) {
       const phone = fieldValues.mobile_number || fieldValues.mobile || fieldValues.phone;
       if (!phone || String(phone).replace(/[^0-9]/g, '').length < 10) {
         alert(

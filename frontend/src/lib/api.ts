@@ -139,7 +139,7 @@ export class ApiService {
 
   // FORMS
   static async getForms(): Promise<CertificateForm[]> {
-    const STORAGE_KEY = 'formseva_custom_forms_v5';
+    const STORAGE_KEY = 'formseva_custom_forms_v6';
     let loadedForms: CertificateForm[] | null = null;
 
     if (typeof window !== 'undefined') {
@@ -174,16 +174,18 @@ export class ApiService {
     const merged = loadedForms.map(form => {
       const mock = mockForms.find(m => m.slug === form.slug || m.id === form.id);
       if (!mock) return form;
+      const mockFields = mock.fields || [];
+      const fields = (form.fields && form.fields.length >= mockFields.length) ? form.fields : mockFields;
       return {
         ...mock,
         ...form,
-        fields: (form.fields && form.fields.length > 0) ? form.fields : mock.fields,
+        fields,
         steps: (form.steps && form.steps.length > 0) ? form.steps : mock.steps,
         required_docs_json: (form.required_docs_json && form.required_docs_json.length > 0) ? form.required_docs_json : mock.required_docs_json
       };
     });
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !localStorage.getItem(STORAGE_KEY)) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
     }
 
@@ -192,7 +194,7 @@ export class ApiService {
 
   static async getFormDetail(slugOrId: string): Promise<CertificateForm> {
     const mock = mockForms.find(m => m.slug === slugOrId || m.id === slugOrId);
-    let form: CertificateForm | undefined;
+    let form: CertificateForm | null = null;
 
     try {
       const res = await fetch(`${API_BASE_URL}/forms/${slugOrId}`, { headers: this.getHeaders() });
@@ -203,7 +205,7 @@ export class ApiService {
 
     if (!form) {
       const forms = await this.getForms();
-      form = forms.find(f => f.slug === slugOrId || f.id === slugOrId);
+      form = forms.find(f => f.slug === slugOrId || f.id === slugOrId) || null;
     }
 
     if (!form && mock) {
@@ -211,8 +213,9 @@ export class ApiService {
     }
 
     if (form && mock) {
-      if (!form.fields || form.fields.length === 0) {
-        form.fields = mock.fields;
+      const mockFields = mock.fields || [];
+      if (!form.fields || form.fields.length < mockFields.length) {
+        form.fields = mockFields;
       }
       if (!form.steps || form.steps.length === 0) {
         form.steps = mock.steps;
@@ -285,7 +288,7 @@ export class ApiService {
       updatedForms = [form, ...forms];
     }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('formseva_custom_forms_v5', JSON.stringify(updatedForms));
+      localStorage.setItem('formseva_custom_forms_v6', JSON.stringify(updatedForms));
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
     try {
@@ -302,7 +305,7 @@ export class ApiService {
     const forms = await this.getForms();
     const updated = forms.filter(f => f.id !== formId && f.slug !== formId);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('formseva_custom_forms_v5', JSON.stringify(updated));
+      localStorage.setItem('formseva_custom_forms_v6', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
     try {
@@ -1354,7 +1357,7 @@ export const mockForms: CertificateForm[] = [
     title_hi: 'ड्राइविंग / लर्निंग लाइसेंस सहायता (सारथी RTO)',
     title_en: 'Driving / Learner Licence Assistance (Sarathi RTO)',
     description_gu: 'ગુજરાત પરિવહન સારથી ૪.૦ પોર્ટલ અરજી, ફેસલેસ ટેસ્ટ સહાયતા અને સ્લોટ બુકિંગ.',
-    description_hi: 'गुजरात परिवहन सारथी 4.0 पोर्टल आवेदन, फेसलेस टेस्ट सहायता एवं स्लॉट बुकिंग।',
+    description_hi: 'गुजरात परिवहन सारथी 4.0 पोर्टल आवेदन, फेसलेस टेस्ट सहायता एवं स्लॉट बुकिंग.',
     description_en: 'Official Sarathi 4.0 portal filing, contactless online test assistance & biometric slot appointment.',
     department_name_gu: 'વાહન વ્યવહાર કમિશનર કચેરી (પરિવહન વિભાગ)',
     department_name_hi: 'પરિવહન આયુક્ત કાર્યાલય (RTO)',
@@ -1383,23 +1386,24 @@ export const mockForms: CertificateForm[] = [
       { id: 's506', form_id: 'f0000000-0000-0000-0000-000000000005', step_key: 'review', step_number: 6, title_gu: 'ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Review & Slot Booking' }
     ],
     fields: [
-      {
-        id: '501', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'applicant_name', step_section: 'personal', field_type: 'text',
-        label_gu: 'અરજદારનું પૂરું નામ (શાળા LC મુજબ)', label_hi: 'आवेदक का पूरा नाम', label_en: 'Applicant Full Name (As per LC)',
-        is_required: true, sort_order: 1
-      },
-      {
-        id: '502', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'vehicle_class', step_section: 'personal', field_type: 'select',
-        label_gu: 'વાહન કેટેગરી', label_hi: 'वाहन श्रेणी', label_en: 'Vehicle Class',
-        options_json: [{ value: 'MCWG', label_gu: 'ટૂ-વ્હીલર (MCWG)', label_hi: 'दोपहिया', label_en: 'Two Wheeler' }, { value: 'LMV', label_gu: 'ફોર-વ્હીલર (LMV - કાર)', label_hi: 'चार पहिया', label_en: 'Four Wheeler' }],
-        is_required: true, sort_order: 2
-      },
-      {
-        id: '503', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'rto_office', step_section: 'address', field_type: 'select',
-        label_gu: 'નજીકની RTO કચેરી', label_hi: 'आरटीओ कार्यालय', label_en: 'Nearest RTO Office',
-        options_json: [{ value: 'GJ-01', label_gu: 'GJ-01 : અમદાવાદ', label_hi: 'GJ-01 : अहमदाबाद', label_en: 'GJ-01 : Ahmedabad' }, { value: 'GJ-05', label_gu: 'GJ-05 : સુરત', label_hi: 'GJ-05 : सूरत', label_en: 'GJ-05 : Surat' }, { value: 'GJ-06', label_gu: 'GJ-06 : વડોદરા', label_hi: 'GJ-06 : वडोदरा', label_en: 'GJ-06 : Vadodara' }],
-        is_required: true, sort_order: 3
-      }
+      { id: '501', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'applicant_name', step_section: 'applicant', field_type: 'text', label_gu: 'અરજદારનું પૂરું નામ (શાળા LC મુજબ)', label_hi: 'आवेदक का पूरा नाम', label_en: 'Applicant Full Name (As per LC)', placeholder_gu: 'જેમ આધાર / LC માં છે તેમ', placeholder_en: 'As per Aadhaar / LC', is_required: true, sort_order: 1 },
+      { id: '502', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'relation_type', step_section: 'applicant', field_type: 'select', label_gu: 'સંબંધ પ્રકાર', label_hi: 'संबंध प्रकार', label_en: 'Relationship Type', options_json: [{ value: 'father', label_gu: 'પિતા (Father)', label_hi: 'पिता', label_en: 'Father' }, { value: 'husband', label_gu: 'પતિ (Husband)', label_hi: 'पति', label_en: 'Husband' }, { value: 'guardian', label_gu: 'વાલી (Guardian)', label_hi: 'अभिभावक', label_en: 'Guardian' }], is_required: true, sort_order: 2 },
+      { id: '503', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'relation_name', step_section: 'applicant', field_type: 'text', label_gu: 'પિતા / પતિનું પૂરું નામ', label_hi: 'पिता / पति का नाम', label_en: 'Father / Husband Full Name', placeholder_gu: 'પૂરું નામ દાખલ કરો', placeholder_en: 'Enter full name', is_required: true, sort_order: 3 },
+      { id: '504', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'gender', step_section: 'applicant', field_type: 'select', label_gu: 'જાતિ / લિંગ', label_hi: 'लिंग', label_en: 'Gender', options_json: [{ value: 'male', label_gu: 'પુરુષ (Male)', label_hi: 'पुरुष', label_en: 'Male' }, { value: 'female', label_gu: 'સ્ત્રી (Female)', label_hi: 'महिला', label_en: 'Female' }], is_required: true, sort_order: 4 },
+      { id: '505', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'dob', step_section: 'applicant', field_type: 'date', label_gu: 'જન્મ તારીખ (ઉંમર ૧૮+ વર્ષ)', label_hi: 'जन्म तिथि', label_en: 'Date of Birth (Age 18+ for LMV/MCWG)', is_required: true, sort_order: 5 },
+      { id: '506', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'blood_group', step_section: 'applicant', field_type: 'select', label_gu: 'બ્લડ ગ્રુપ (રક્ત જૂથ)', label_hi: 'रक्त समूह', label_en: 'Blood Group', options_json: [{ value: 'A_pos', label_gu: 'A+', label_hi: 'A+', label_en: 'A+' }, { value: 'B_pos', label_gu: 'B+', label_hi: 'B+', label_en: 'B+' }, { value: 'O_pos', label_gu: 'O+', label_hi: 'O+', label_en: 'O+' }, { value: 'AB_pos', label_gu: 'AB+', label_hi: 'AB+', label_en: 'AB+' }, { value: 'unknown', label_gu: 'ખબર નથી (Unknown)', label_hi: 'अज्ञात', label_en: 'Unknown' }], is_required: true, sort_order: 6 },
+      { id: '507', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'educational_qualification', step_section: 'applicant', field_type: 'select', label_gu: 'શૈક્ષણિક લાયકાત', label_hi: 'शैक्षणिक योग्यता', label_en: 'Educational Qualification', options_json: [{ value: '10th_pass', label_gu: '૧૦ પાસ અથવા વધુ (10th Standard or Higher)', label_hi: '10वीं उत्तीर्ण या अधिक', label_en: '10th Standard or Higher' }, { value: '8th_pass', label_gu: '૮ પાસ (8th Standard Pass)', label_hi: '8वीं उत्तीर्ण', label_en: '8th Standard Pass' }, { value: 'graduate', label_gu: 'સ્નાતક (Graduate)', label_hi: 'स्नातक', label_en: 'Graduate' }], is_required: true, sort_order: 7 },
+      { id: '508', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'mobile_number', step_section: 'applicant', field_type: 'number', label_gu: 'આધાર લિન્ક્ડ મોબાઈલ નંબર', label_hi: 'आधार लिंक्ड मोबाइल नंबर', label_en: 'Aadhaar Linked Mobile Number', placeholder_gu: '10 અંકનો મોબાઈલ', placeholder_en: '10-digit mobile', is_required: true, sort_order: 8 },
+      { id: '509', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'aadhaar_number', step_section: 'applicant', field_type: 'number', label_gu: 'આધાર કાર્ડ નંબર', label_hi: 'आधार कार्ड नंबर', label_en: 'Aadhaar Card Number', placeholder_gu: '12 અંકનો આધાર', placeholder_en: '12-digit Aadhaar', is_required: true, sort_order: 9 },
+      { id: '510', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'district', step_section: 'address', field_type: 'select', label_gu: 'જિલ્લો', label_hi: 'जिला', label_en: 'District', options_json: [{ value: 'Ahmedabad', label_gu: 'અમદાવાદ', label_hi: 'अहमदाबाद', label_en: 'Ahmedabad' }, { value: 'Surat', label_gu: 'સુરત', label_hi: 'સूरत', label_en: 'Surat' }, { value: 'Vadodara', label_gu: 'વડોદરા', label_hi: 'वडोદરા', label_en: 'Vadodara' }, { value: 'Rajkot', label_gu: 'રાજકોટ', label_hi: 'રાજકોટ', label_en: 'Rajkot' }], is_required: true, sort_order: 10 },
+      { id: '511', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'taluka', step_section: 'address', field_type: 'text', label_gu: 'તાલુકો', label_hi: 'तालुका', label_en: 'Taluka', placeholder_gu: 'તાલુકાનું નામ', placeholder_en: 'Taluka name', is_required: true, sort_order: 11 },
+      { id: '512', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'flat_house_street', step_section: 'address', field_type: 'text', label_gu: 'મકાન / ફ્લેટ / સોસાયટી / રસ્તો', label_hi: 'मकान / सड़क', label_en: 'Flat / House / Street Name', placeholder_gu: 'સોસાયટી / ઘર નંબર', placeholder_en: 'House / Society Name', is_required: true, sort_order: 12 },
+      { id: '513', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'village_city', step_section: 'address', field_type: 'text', label_gu: 'ગામ / શહેર', label_hi: 'गांव / शहर', label_en: 'Village / City', placeholder_gu: 'ગામ અથવા શહેર', placeholder_en: 'Village or City', is_required: true, sort_order: 13 },
+      { id: '514', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'pincode', step_section: 'address', field_type: 'number', label_gu: 'પીનકોડ', label_hi: 'पिनकोड', label_en: 'Pincode', placeholder_gu: '6 અંકનો પીનકોડ', placeholder_en: '6-digit pincode', is_required: true, sort_order: 14 },
+      { id: '515', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'licence_category', step_section: 'licence_service', field_type: 'select', label_gu: 'લાયસન્સ સેવાનો પ્રકાર', label_hi: 'लाइसेंस सेवा का प्रकार', label_en: 'Licence Service Category', options_json: [{ value: 'new_ll', label_gu: 'નવું લર્નર લાયસન્સ (New Learner Licence - LL)', label_hi: 'नया लर्नर लाइसेंस', label_en: 'New Learner Licence (LL)' }, { value: 'permanent_dl', label_gu: 'પાકું લાયસન્સ (Permanent Driving Licence - DL)', label_hi: 'स्थाई ड्राइविंग लाइसेंस', label_en: 'Permanent Driving Licence (DL)' }], is_required: true, sort_order: 15 },
+      { id: '516', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'vehicle_class', step_section: 'licence_service', field_type: 'select', label_gu: 'વાહન ક્લાસ (Class of Vehicle - COV)', label_hi: 'वाहन श्रेणी', label_en: 'Class of Vehicle (COV)', options_json: [{ value: 'mcwg_and_lmv', label_gu: 'બંને બાઇક અને કાર (MCWG + LMV - Car & Motorcycle)', label_hi: 'बाइक एवं कार दोनों', label_en: 'Both Bike & Car (MCWG + LMV)' }, { value: 'mcwg', label_gu: 'ગિયરવાળી મોટરસાઇકલ / બાઇક (MCWG)', label_hi: 'मोटरसाइकिल (MCWG)', label_en: 'Motorcycle with Gear (MCWG)' }, { value: 'lmv', label_gu: 'લાઇટ મોટર વ્હીકલ - કાર/જીપ (LMV)', label_hi: 'कार / जीप (LMV)', label_en: 'Light Motor Vehicle (LMV)' }], is_required: true, sort_order: 16 },
+      { id: '517', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'rto_office', step_section: 'rto_selection', field_type: 'select', label_gu: 'નજીકની RTO / ARTO કચેરી', label_hi: 'निकटतम आरटीओ कार्यालय', label_en: 'Nearest RTO / ARTO Office', options_json: [{ value: 'GJ-01', label_gu: 'GJ-01: અમદાવાદ (પશ્ચિમ / સુભાષબ્રિજ RTO)', label_hi: 'GJ-01 अहमदाबाद', label_en: 'GJ-01: Ahmedabad West (Subhashbridge RTO)' }, { value: 'GJ-27', label_gu: 'GJ-27: અમદાવાદ (પૂર્વ / વસ્ત્રાલ RTO)', label_hi: 'GJ-27 वस्त्राल', label_en: 'GJ-27: Ahmedabad East (Vastral RTO)' }, { value: 'GJ-05', label_gu: 'GJ-05: સુરત RTO', label_hi: 'GJ-05 सूरत', label_en: 'GJ-05: Surat RTO' }, { value: 'GJ-06', label_gu: 'GJ-06: વડોદરા RTO', label_hi: 'GJ-06 वडोदरा', label_en: 'GJ-06: Vadodara RTO' }, { value: 'GJ-03', label_gu: 'GJ-03: રાજકોટ RTO', label_hi: 'GJ-03 राजकोट', label_en: 'GJ-03: Rajkot RTO' }], is_required: true, sort_order: 17 },
+      { id: '518', form_id: 'f0000000-0000-0000-0000-000000000005', field_key: 'test_mode', step_section: 'rto_selection', field_type: 'select', label_gu: 'પરીક્ષા મોડ (ફેસલેસ હોમ ટેસ્ટ / RTO રૂબરૂ)', label_hi: 'परीक्षा मोड', label_en: 'Test Mode', options_json: [{ value: 'home_faceless', label_gu: 'ઘરે બેઠા ઓનલાઈન LL પરીક્ષા (Aadhaar Faceless Contactless Test)', label_hi: 'घर बैठे ऑनलाइन परीक्षा', label_en: 'Contactless Home Online Test via Aadhaar' }, { value: 'rto_physical', label_gu: 'RTO કચેરી ખાતે રૂબરૂ કમ્પ્યુટર પરીક્ષા', label_hi: 'आरटीओ कार्यालय में परीक्षा', label_en: 'Physical Test at RTO Office' }], is_required: true, sort_order: 18 }
     ]
   },
   {
@@ -1435,11 +1439,22 @@ export const mockForms: CertificateForm[] = [
       { id: 's606', form_id: 'f0000000-0000-0000-0000-000000000006', step_key: 'review', step_number: 6, title_gu: 'અંતિમ ચકાસણી અને પેમેન્ટ', title_hi: 'સમીક્ષા એવં ભુગતાન', title_en: 'Final Verification & Submit' }
     ],
     fields: [
-      { id: '601', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'candidate_name', step_section: 'candidate', field_type: 'text', label_gu: 'ઉમેદવારનું પૂરું નામ (૧૦મી માર્કશીટ મુજબ)', label_hi: 'उम्मीदवार का नाम (10वीं के अनुसार)', label_en: 'Candidate Full Name (As per 10th marksheet)', is_required: true, sort_order: 1 },
-      { id: '602', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'mother_name', step_section: 'personal', field_type: 'text', label_gu: 'માતાશ્રીનું નામ', label_hi: 'माता का नाम', label_en: 'Mother Name', is_required: true, sort_order: 2 },
-      { id: '603', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'category', step_section: 'personal', field_type: 'select', label_gu: 'કેટેગરી / જ્ઞાતિ વર્ગ', label_hi: 'वर्ग / श्रेणी', label_en: 'Category', options_json: [{ value: 'general', label_gu: 'સામાન્ય (General)', label_hi: 'सामान्य (General)', label_en: 'General' }, { value: 'gen_ews', label_gu: 'જનરલ - EWS', label_hi: 'जनरल - EWS', label_en: 'General-EWS' }, { value: 'obc_ncl', label_gu: 'OBC - NCL (સેન્ટ્રલ લિસ્ટ)', label_hi: 'OBC - NCL (केंद्रीय सूची)', label_en: 'OBC-NCL (Central List)' }, { value: 'sc', label_gu: 'અનુસૂચિત જાતિ (SC)', label_hi: 'अनुसूचित जाति (SC)', label_en: 'SC' }, { value: 'st', label_gu: 'અનુસૂચિત જનજાતિ (ST)', label_hi: 'अनुसूचित जनजाति (ST)', label_en: 'ST' }], is_required: true, sort_order: 3 },
-      { id: '604', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'exam_medium', step_section: 'specific', field_type: 'select', label_gu: 'પ્રશ્નપત્રનું માધ્યમ', label_hi: 'परीक्षा का माध्यम', label_en: 'Question Paper Medium', options_json: [{ value: 'gujarati', label_gu: 'ગુજરાતી અને અંગ્રેજી (Gujarati & English)', label_hi: 'गुजराती व अंग्रेजी', label_en: 'Gujarati & English' }, { value: 'english', label_gu: 'માત્ર અંગ્રેજી (English Only)', label_hi: 'केवल अंग्रेजी', label_en: 'English Only' }, { value: 'hindi', label_gu: 'હિન્દી અને અંગ્રેજી (Hindi & English)', label_hi: 'हिंदी व अंग्रेजी', label_en: 'Hindi & English' }], is_required: true, sort_order: 4 },
-      { id: '605', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'exam_city_choice_1', step_section: 'address', field_type: 'select', label_gu: 'પ્રથમ પસંદગીનું પરીક્ષા કેન્દ્ર', label_hi: 'प्रथम परीक्षा केंद्र पसंद', label_en: '1st Choice Exam City', options_json: [{ value: 'Ahmedabad', label_gu: 'અમદાવાદ', label_hi: 'अहमदाबाद', label_en: 'Ahmedabad' }, { value: 'Surat', label_gu: 'સુરત', label_hi: 'सूरत', label_en: 'Surat' }, { value: 'Vadodara', label_gu: 'વડોદરા', label_hi: 'वडोदरा', label_en: 'Vadodara' }, { value: 'Rajkot', label_gu: 'રાજકોટ', label_hi: 'राजकोट', label_en: 'Rajkot' }, { value: 'Bhavnagar', label_gu: 'ભાવનગર', label_hi: 'भावनगर', label_en: 'Bhavnagar' }, { value: 'Bhuj', label_gu: 'ભુજ / કચ્છ', label_hi: 'भुज', label_en: 'Bhuj' }], is_required: true, sort_order: 5 }
+      { id: '601', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'candidate_name', step_section: 'candidate', field_type: 'text', label_gu: 'ઉમેદવારનું પૂરું નામ (૧૦મી માર્કશીટ મુજબ)', label_hi: 'उम्मीदवार का पूरा नाम', label_en: 'Candidate Full Name (As per 10th marksheet)', placeholder_gu: 'જેમ ૧૦મીની માર્કશીટમાં છે તેમ', placeholder_en: 'As per Class 10 marksheet', is_required: true, sort_order: 1 },
+      { id: '602', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'father_name', step_section: 'candidate', field_type: 'text', label_gu: 'પિતાશ્રીનું નામ', label_hi: 'पिता का नाम', label_en: "Father's Name", placeholder_gu: 'પિતાશ્રીનું નામ', placeholder_en: "Father's name", is_required: true, sort_order: 2 },
+      { id: '603', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'mother_name', step_section: 'candidate', field_type: 'text', label_gu: 'માતાશ્રીનું નામ', label_hi: 'माता का नाम', label_en: "Mother's Name", placeholder_gu: 'માતાશ્રીનું નામ', placeholder_en: "Mother's name", is_required: true, sort_order: 3 },
+      { id: '604', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'dob', step_section: 'candidate', field_type: 'date', label_gu: 'જન્મ તારીખ', label_hi: 'जन्म तिथि', label_en: 'Date of Birth', is_required: true, sort_order: 4 },
+      { id: '605', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'gender', step_section: 'candidate', field_type: 'select', label_gu: 'લિંગ / Gender', label_hi: 'लिंग', label_en: 'Gender', options_json: [{ value: 'male', label_gu: 'પુરુષ (Male)', label_hi: 'पुरुष', label_en: 'Male' }, { value: 'female', label_gu: 'સ્ત્રી (Female)', label_hi: 'महिला', label_en: 'Female' }], is_required: true, sort_order: 5 },
+      { id: '606', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'mobile_number', step_section: 'candidate', field_type: 'number', label_gu: 'ઉમેદવારનો મોબાઈલ નંબર', label_hi: 'उम्मीदवार मोबाइल नंबर', label_en: 'Candidate Mobile Number', placeholder_gu: '10 અંકનો મોબાઈલ', placeholder_en: '10-digit mobile', is_required: true, sort_order: 6 },
+      { id: '607', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'category', step_section: 'candidate', field_type: 'select', label_gu: 'કેટેગરી / અનામત વર્ગ', label_hi: 'वर्ग / श्रेणी', label_en: 'Category', options_json: [{ value: 'general', label_gu: 'સામાન્ય (General / Unreserved)', label_hi: 'सामान्य (General)', label_en: 'General' }, { value: 'gen_ews', label_gu: 'જનરલ - EWS (General-EWS)', label_hi: 'जनरल - EWS', label_en: 'General-EWS' }, { value: 'obc_ncl', label_gu: 'OBC - NCL (સેન્ટ્રલ લિસ્ટ મુજબ)', label_hi: 'OBC - NCL', label_en: 'OBC-NCL (Central List)' }, { value: 'sc', label_gu: 'અનુસૂચિત જાતિ (SC)', label_hi: 'अनुसूचित जाति (SC)', label_en: 'SC' }, { value: 'st', label_gu: 'અનુસૂચિત જનજાતિ (ST)', label_hi: 'अनुसूचित जनजाति (ST)', label_en: 'ST' }], is_required: true, sort_order: 7 },
+      { id: '608', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'district', step_section: 'address', field_type: 'select', label_gu: 'જિલ્લો', label_hi: 'जिला', label_en: 'District', options_json: [{ value: 'Ahmedabad', label_gu: 'અમદાવાદ', label_hi: 'अहमदाबाद', label_en: 'Ahmedabad' }, { value: 'Surat', label_gu: 'સુરત', label_hi: 'सूरत', label_en: 'Surat' }, { value: 'Vadodara', label_gu: 'વડોદરા', label_hi: 'वडोदरा', label_en: 'Vadodara' }, { value: 'Rajkot', label_gu: 'રાજકોટ', label_hi: 'राजकोट', label_en: 'Rajkot' }], is_required: true, sort_order: 8 },
+      { id: '609', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'full_address', step_section: 'address', field_type: 'textarea', label_gu: 'કાયમી તથા વર્તમાન સરનામું', label_hi: 'स्थाई एवं वर्तमान पता', label_en: 'Full Permanent & Present Address', placeholder_gu: 'ઘર નંબર, સોસાયટી, વિસ્તાર', placeholder_en: 'House no, society, area', is_required: true, sort_order: 9 },
+      { id: '610', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'pincode', step_section: 'address', field_type: 'number', label_gu: 'પીનકોડ', label_hi: 'पिनकोड', label_en: 'Pincode', placeholder_gu: '6 અંકનો પીનકોડ', placeholder_en: '6-digit pincode', is_required: true, sort_order: 10 },
+      { id: '611', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'email', step_section: 'address', field_type: 'text', label_gu: 'ઉમેદવારનું ઈમેલ આઈડી', label_hi: 'उम्मीदवार का ईमेल', label_en: 'Candidate Email ID', placeholder_gu: 'student@gmail.com', placeholder_en: 'student@gmail.com', is_required: true, sort_order: 11 },
+      { id: '612', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'class_10_board', step_section: 'academic', field_type: 'select', label_gu: 'ધોરણ ૧૦ બોર્ડનું નામ', label_hi: '10वीं बोर्ड का नाम', label_en: 'Class 10 Education Board', options_json: [{ value: 'gseb', label_gu: 'GSEB - ગુજરાત માધ્યમિક શિક્ષણ બોર્ડ', label_hi: 'GSEB गुजरात बोर्ड', label_en: 'GSEB (Gujarat Secondary Board)' }, { value: 'cbse', label_gu: 'CBSE - સેન્ટ્રલ બોર્ડ', label_hi: 'CBSE बोर्ड', label_en: 'CBSE' }], is_required: true, sort_order: 12 },
+      { id: '613', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'class_10_percentage', step_section: 'academic', field_type: 'number', label_gu: 'ધોરણ ૧૦ ટકાવારી / પર્સન્ટાઈલ', label_hi: '10वीं प्रतिशत', label_en: 'Class 10 Percentage / CGPA', placeholder_gu: 'દા.ત. 85.50', placeholder_en: 'e.g. 85.50', is_required: true, sort_order: 13 },
+      { id: '614', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'class_12_pass_status', step_section: 'academic', field_type: 'select', label_gu: '૧૨મું સાયન્સ (PCB) સ્થિતિ', label_hi: '12वीं विज्ञान स्थिति', label_en: 'Class 12 (PCB) Status', options_json: [{ value: 'appearing', label_gu: '૨૦૨૬ માં પરીક્ષા આપી રહેલ છે (Appearing)', label_hi: '2026 में सम्मिलित', label_en: 'Appearing in 2026' }, { value: 'passed', label_gu: '૧૨મું પાસ થઈ ગયેલ છે (Passed)', label_hi: 'उत्तीर्ण', label_en: 'Passed' }], is_required: true, sort_order: 14 },
+      { id: '615', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'exam_medium', step_section: 'exam_details', field_type: 'select', label_gu: 'પ્રશ્નપત્રનું માધ્યમ', label_hi: 'परीक्षा का माध्यम', label_en: 'Question Paper Medium', options_json: [{ value: 'gujarati', label_gu: 'ગુજરાતી અને અંગ્રેજી (Gujarati & English)', label_hi: 'गुजराती व अंग्रेजी', label_en: 'Gujarati & English' }, { value: 'english', label_gu: 'માત્ર અંગ્રેજી (English Only)', label_hi: 'केवल अंग्रेजी', label_en: 'English Only' }], is_required: true, sort_order: 15 },
+      { id: '616', form_id: 'f0000000-0000-0000-0000-000000000006', field_key: 'exam_city_choice_1', step_section: 'exam_details', field_type: 'select', label_gu: 'પ્રથમ પસંદગીનું પરીક્ષા કેન્દ્ર', label_hi: 'प्रथम परीक्षा केंद्र पसंद', label_en: '1st Choice Exam City', options_json: [{ value: 'Ahmedabad', label_gu: 'અમદાવાદ', label_hi: 'अहमदाबाद', label_en: 'Ahmedabad' }, { value: 'Surat', label_gu: 'સુરત', label_hi: 'सूरत', label_en: 'Surat' }, { value: 'Vadodara', label_gu: 'વડોદરા', label_hi: 'वडोदरा', label_en: 'Vadodara' }, { value: 'Rajkot', label_gu: 'રાજકોટ', label_hi: 'राजकोट', label_en: 'Rajkot' }], is_required: true, sort_order: 16 }
     ]
   }
 ];
