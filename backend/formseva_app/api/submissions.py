@@ -274,7 +274,7 @@ def upload_submission_document(
     """
     sub = check_submission_access(submission_id, current_user, require_write=True)
     
-    # ── File Security Validation ──
+    # ── File Security Validation (FS-H4) ──
     MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     ALLOWED_MIME_TYPES = {
         "application/pdf",
@@ -284,55 +284,71 @@ def upload_submission_document(
     }
     ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
     
-    # Validate file extension
+    # 1. Validate file extension
     file_ext = ""
     if file.filename:
         file_ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"File type '{file_ext}' not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+            detail=f"File extension '{file_ext}' is not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
         )
     
-    # Validate MIME type
-    content_type = (file.content_type or "").lower()
-    if content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"MIME type '{content_type}' not allowed. Accepted: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
-        )
-    
-    # Validate file size (read content to check — in production use streaming/Content-Length)
+    # 2. Read content & validate file size
     file_content = file.file.read()
     file_size = len(file_content)
-    file.file.seek(0)  # Reset for downstream consumers
+    file.file.seek(0)
     
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="Empty file upload is not allowed.")
     if file_size > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=413,
             detail=f"File too large ({file_size / (1024*1024):.1f} MB). Maximum allowed: 5 MB"
         )
     
+    # 3. Cryptographic Magic Bytes Verification (FS-H4)
+    detected_mime = None
+    if file_content.startswith(b"%PDF"):
+        detected_mime = "application/pdf"
+    elif file_content.startswith(b"\xff\xd8\xff"):
+        detected_mime = "image/jpeg"
+    elif file_content.startswith(b"\x89PNG\r\n\x1a\n"):
+        detected_mime = "image/png"
+    elif file_content.startswith(b"RIFF") and len(file_content) >= 12 and b"WEBP" in file_content[8:12]:
+        detected_mime = "image/webp"
+        
+    if not detected_mime or detected_mime not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="File content failed magic byte inspection. The file header does not match a valid PDF, JPEG, PNG, or WebP document."
+        )
+    
+    # 4. Server-Generated Safe UUID Storage Path (FS-H4)
     doc_id = str(uuid.uuid4())
-    storage_path = f"submissions/{submission_id}/{document_type_key}_{file.filename}"
+    safe_filename = f"{doc_id}{file_ext}"
+    storage_path = f"vault/{submission_id}/{safe_filename}"
+    
+    # Sanitize user display filename
+    clean_original_filename = "".join(c for c in (file.filename or safe_filename) if c.isalnum() or c in "._- ")
     
     # Overwrite if document_type_key already exists for this submission
     existing_doc = next((d for d in db.submission_documents.values() if d["submission_id"] == submission_id and d["document_type_key"] == document_type_key), None)
     if existing_doc:
-        existing_doc["file_name"] = file.filename
+        existing_doc["file_name"] = clean_original_filename
         existing_doc["storage_path"] = storage_path
-        existing_doc["mime_type"] = content_type
+        existing_doc["mime_type"] = detected_mime
         existing_doc["file_size_bytes"] = file_size
-        existing_doc["created_at"] = datetime.now(timezone.utc)
+        existing_doc["updated_at"] = datetime.now(timezone.utc)
         return {"message": "Document replaced successfully", "document": existing_doc}
     
     doc_meta = {
         "id": doc_id,
         "submission_id": submission_id,
         "document_type_key": document_type_key,
-        "file_name": file.filename,
+        "file_name": clean_original_filename,
         "file_size_bytes": file_size,
-        "mime_type": content_type,
+        "mime_type": detected_mime,
         "storage_path": storage_path,
         "is_verified": False,
         "created_at": datetime.now(timezone.utc)
@@ -343,13 +359,11 @@ def upload_submission_document(
 
 @router.get("/{submission_id}/certificate")
 def get_submission_certificate(submission_id: str, current_user: dict = Depends(get_current_user)):
-    """Retrieve digital certificate metadata for an approved submission."""
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    
-    if current_user.get("role") == "citizen" and sub["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    """
+    Retrieve digital certificate metadata for an approved submission (FS-H4).
+    Enforces authorization access control.
+    """
+    sub = check_submission_access(submission_id, current_user, require_write=False)
     
     form = db.forms.get(sub["form_id"], {})
     user = db.users.get(sub["user_id"], {})

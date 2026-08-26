@@ -434,5 +434,54 @@ def test_phase2_unified_authorization_and_access_control():
     }, headers=nikhil_headers)
     assert nikhil_otp.status_code == 403
 
+def test_phase3_upload_security_and_magic_bytes():
+    """Verify Phase 3 Upload Security & Magic Byte Validation: FS-H4."""
+    # 1. Citizen creates submission
+    cit_token = client.post("/api/v1/auth/login", json={"email": "uploader@test.in", "full_name": "File Uploader"}).json()["access_token"]
+    headers = {"Authorization": f"Bearer {cit_token}"}
+    
+    sub = client.post("/api/v1/submissions", json={
+        "form_slug": "income_certificate",
+        "field_values": {"applicant_name": "File Uploader"}
+    }, headers=headers).json()
+    sub_id = sub["id"]
+    
+    # 2. Upload fake PDF (disguised text file without %PDF magic bytes) -> 400 Bad Request
+    fake_pdf = b"This is plain text trying to pose as a PDF document"
+    res_fake = client.post(
+        f"/api/v1/submissions/{sub_id}/upload-doc",
+        data={"document_type_key": "income_proof"},
+        files={"file": ("fake_doc.pdf", fake_pdf, "application/pdf")},
+        headers=headers
+    )
+    assert res_fake.status_code == 400
+    assert "magic byte" in res_fake.json()["detail"].lower()
+    
+    # 3. Upload genuine PDF with valid %PDF-1.4 header -> 200 OK
+    genuine_pdf = b"%PDF-1.4\n%genuine pdf content for verification\n%%EOF"
+    res_genuine = client.post(
+        f"/api/v1/submissions/{sub_id}/upload-doc",
+        data={"document_type_key": "income_proof"},
+        files={"file": ("genuine_doc.pdf", genuine_pdf, "application/pdf")},
+        headers=headers
+    )
+    assert res_genuine.status_code == 200
+    doc_data = res_genuine.json()["document"]
+    assert doc_data["mime_type"] == "application/pdf"
+    assert "vault/" in doc_data["storage_path"]
+    assert doc_data["storage_path"].startswith(f"vault/{sub_id}/")
+    assert doc_data["storage_path"].endswith(".pdf")
+    
+    # 4. Upload genuine PNG with valid PNG magic bytes -> 200 OK
+    genuine_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    res_png = client.post(
+        f"/api/v1/submissions/{sub_id}/upload-doc",
+        data={"document_type_key": "identity_proof"},
+        files={"file": ("id_photo.png", genuine_png, "image/png")},
+        headers=headers
+    )
+    assert res_png.status_code == 200
+    assert res_png.json()["document"]["mime_type"] == "image/png"
+
 
 
