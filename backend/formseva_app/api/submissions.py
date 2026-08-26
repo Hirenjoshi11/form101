@@ -13,6 +13,7 @@ from formseva_app.core.security import (
     mask_aadhaar,
     mask_pan,
 )
+from formseva_app.core.state_machine import validate_status_transition
 
 router = APIRouter(prefix="/submissions", tags=["Citizen Submissions"])
 
@@ -199,6 +200,9 @@ def resubmit_submission(
     Enforces citizen ownership and updates the existing application in place.
     """
     sub = check_submission_access(submission_id, current_user, require_write=True)
+    
+    # Enforce state machine transition (FS-H2)
+    validate_status_transition(sub.get("status", "rejected"), "resubmitted")
     
     # Update field values
     if submission_id in db.submission_field_values:

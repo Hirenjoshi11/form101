@@ -61,6 +61,35 @@ def list_operators():
         })
     return ops
 
+@router.patch("/operators/{operator_id}/toggle-active", dependencies=[Depends(require_role(["admin"]))])
+def toggle_operator_active(operator_id: str, current_user: dict = Depends(require_role(["admin"]))):
+    """Admin endpoint to toggle operator active status and sync assignments (FS-L5)."""
+    op = db.operators.get(operator_id)
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+        
+    old_status = op.get("is_active", True)
+    new_status = not old_status
+    op["is_active"] = new_status
+    op["updated_at"] = datetime.now(timezone.utc)
+    
+    # Synchronize operator form assignments
+    for a in db.operator_form_assignments.values():
+        if a.get("operator_id") == operator_id:
+            a["is_active"] = new_status
+            
+    db.audit_logs.append({
+        "id": str(uuid.uuid4()),
+        "actor_id": current_user["id"],
+        "actor_role": "admin",
+        "action": "TOGGLE_OPERATOR_ACTIVE",
+        "entity_type": "operators",
+        "entity_id": operator_id,
+        "new_state": {"is_active": new_status},
+        "created_at": datetime.now(timezone.utc)
+    })
+    return {"message": f"Operator active status toggled to {new_status}", "operator": op}
+
 @router.get("/operator-assignments", dependencies=[Depends(require_role(["admin"]))])
 def list_operator_assignments():
     """Returns list of all active operator <-> form eligibility assignments."""

@@ -6,20 +6,24 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from formseva_app.models.schemas import OtpTriggerRequest, OtpSubmitRequest
 from formseva_app.core.database import db
 from formseva_app.core.security import get_current_user, require_role, check_submission_access
+from formseva_app.core.state_machine import validate_status_transition
 
 router = APIRouter(prefix="/otp", tags=["In-App Assisted OTP Relay"])
 
 @router.post("/trigger", dependencies=[Depends(require_role(["operator", "admin"]))])
 def trigger_otp_request(payload: OtpTriggerRequest, current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Operator triggers an in-app OTP prompt to the citizen (FS-H3).
-    Enforces assigned operator authorization.
+    Operator triggers an in-app OTP prompt to the citizen (FS-H3, FS-H2).
+    Enforces assigned operator authorization and state machine transition.
     Complies with Google Play & India DPDP Act 2023:
     - Never scrapes user SMS or phone logs
     - Citizen receives govt SMS on their phone and manually types it in-app
     - Only stores timestamp and status
     """
     sub = check_submission_access(payload.submission_id, current_user, require_write=True, require_assigned_operator=True)
+    
+    # Enforce state machine transition (FS-H2)
+    validate_status_transition(sub.get("status", "operator_filling"), "awaiting_otp")
     
     # Calculate sequence number
     existing_requests = [r for r in db.otp_requests.values() if r["submission_id"] == payload.submission_id]
@@ -104,6 +108,9 @@ def submit_otp_by_citizen(payload: OtpSubmitRequest, current_user: dict = Depend
     sub = check_submission_access(otp_req["submission_id"], current_user, require_write=True)
     if current_user.get("role") != "admin" and sub["user_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Access denied: Only the applicant citizen may submit the OTP.")
+    
+    # Enforce state machine transition (FS-H2)
+    validate_status_transition(sub.get("status", "awaiting_otp"), "otp_received")
     
     # Update OTP status & submission status
     otp_req["status"] = "submitted_by_citizen"

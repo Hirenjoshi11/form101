@@ -483,5 +483,119 @@ def test_phase3_upload_security_and_magic_bytes():
     assert res_png.status_code == 200
     assert res_png.json()["document"]["mime_type"] == "image/png"
 
+def test_phase4_state_machine_and_lifecycle_transitions():
+    """Verify Phase 4 Lifecycle State Machine (FS-H2, FS-L5)."""
+    # 1. Citizen creates submission
+    cit_token = client.post("/api/v1/auth/login", json={"email": "lifecycle@test.in", "full_name": "Lifecycle Citizen"}).json()["access_token"]
+    headers = {"Authorization": f"Bearer {cit_token}"}
+    
+    sub = client.post("/api/v1/submissions", json={
+        "form_slug": "income_certificate",
+        "field_values": {"applicant_name": "Lifecycle Citizen"}
+    }, headers=headers).json()
+    sub_id = sub["id"]
+    
+    op_token = client.post("/api/v1/auth/login", json={
+        "email": "vicky.operator@formseva.in",
+        "password": "Operator@123!"
+    }).json()["access_token"]
+    op_headers = {"Authorization": f"Bearer {op_token}"}
+    
+    # 2. Operator attempts invalid jump: updating directly to 'approved' without starting -> 400 Bad Request
+    invalid_jump = client.post(f"/api/v1/operator/submissions/{sub_id}/update-status", json={
+        "status": "approved"
+    }, headers=op_headers)
+    assert invalid_jump.status_code in (400, 403)
+    
+    # 3. Valid transition: start filing -> operator_filling
+    start_res = client.post(f"/api/v1/operator/submissions/{sub_id}/start", headers=op_headers)
+    assert start_res.status_code == 200
+    assert start_res.json()["submission"]["status"] == "operator_filling"
+    
+    # 4. Valid transition: operator_filling -> approved
+    approve_res = client.post(f"/api/v1/operator/submissions/{sub_id}/update-status", json={
+        "status": "approved",
+        "certificate_url": "https://digitalgujarat.gov.in/certs/test.pdf"
+    }, headers=op_headers)
+    assert approve_res.status_code == 200
+    assert approve_res.json()["submission"]["status"] == "approved"
+    
+    # 5. Invalid transition: approved is terminal, citizen cannot resubmit an approved certificate -> 400 Bad Request
+    invalid_resubmit = client.post(f"/api/v1/submissions/{sub_id}/resubmit", json={
+        "field_values": {"applicant_name": "Tampered Name"}
+    }, headers=headers)
+    assert invalid_resubmit.status_code == 400
+    assert "cannot transition" in invalid_resubmit.json()["detail"].lower()
+    
+    # 6. Admin toggles operator active status (FS-L5)
+    admin_token = client.post("/api/v1/auth/login", json={
+        "email": "admin@formseva.gujarat.gov.in",
+        "password": "Admin@FormSeva2026!"
+    }).json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # Find operator id for Vicky
+    vicky_id = next(op["id"] for op in client.get("/api/v1/admin/operators", headers=admin_headers).json() if op["email"] == "vicky.operator@formseva.in")
+    toggle_op = client.patch(f"/api/v1/admin/operators/{vicky_id}/toggle-active", headers=admin_headers)
+    assert toggle_op.status_code == 200
+    assert toggle_op.json()["operator"]["is_active"] is False
+    
+    # Toggle back to active
+    toggle_back = client.patch(f"/api/v1/admin/operators/{vicky_id}/toggle-active", headers=admin_headers)
+    assert toggle_back.status_code == 200
+    assert toggle_back.json()["operator"]["is_active"] is True
+
+def test_phase5_operational_defense_in_depth():
+    """Verify Phase 5 Defense-in-Depth (FS-M3, FS-M1, FS-L1)."""
+    # 1. Security headers check on responses (FS-M3)
+    health_res = client.get("/health")
+    assert health_res.status_code == 200
+    assert health_res.headers.get("X-Content-Type-Options") == "nosniff"
+    assert health_res.headers.get("X-Frame-Options") == "DENY"
+    assert health_res.headers.get("X-XSS-Protection") == "1; mode=block"
+    assert health_res.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    
+    # 2. Rate limiter sliding-window test (FS-M1)
+    from formseva_app.core.rate_limit import InMemoryRateLimiter
+    from fastapi import Request
+    from unittest.mock import MagicMock
+    
+    limiter = InMemoryRateLimiter(requests_limit=3, window_seconds=2)
+    mock_req = MagicMock(spec=Request)
+    mock_req.client.host = "192.168.1.50"
+    mock_req.url.path = "/test/endpoint"
+    
+    # 3 allowed
+    limiter(mock_req)
+    limiter(mock_req)
+    limiter(mock_req)
+    
+    # 4th triggers 429 Too Many Requests
+    import pytest
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        limiter(mock_req)
+    assert exc_info.value.status_code == 429
+    
+    # 3. Audit log structure validation (FS-L1)
+    from formseva_app.core.audit import record_audit_log
+    from formseva_app.core.database import db
+    
+    initial_len = len(db.audit_logs)
+    record_audit_log(
+        action="TEST_SECURITY_AUDIT",
+        actor_id="admin-001",
+        actor_role="admin",
+        entity_type="system",
+        entity_id="sys-1",
+        old_state={"setting": False},
+        new_state={"setting": True}
+    )
+    assert len(db.audit_logs) == initial_len + 1
+    latest_log = db.audit_logs[-1]
+    assert latest_log["action"] == "TEST_SECURITY_AUDIT"
+    assert "client_ip" in latest_log
+    assert "user_agent" in latest_log
+
 
 

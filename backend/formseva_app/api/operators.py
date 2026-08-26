@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from formseva_app.models.schemas import SubmissionResponse, SubmissionStatusUpdate
 from formseva_app.core.database import db
 from formseva_app.core.security import require_role, check_submission_access
+from formseva_app.core.state_machine import validate_status_transition
 from formseva_app.api.submissions import _format_submission_response
 
 router = APIRouter(prefix="/operator", tags=["Operator Workbench"])
@@ -49,12 +50,15 @@ def get_operator_queue(current_user: dict = Depends(require_role(["operator", "a
 @router.post("/submissions/{submission_id}/start", dependencies=[Depends(require_role(["operator", "admin"]))])
 def start_filing_submission(submission_id: str, current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Operator begins filing on the Gujarat government portal (FS-H1).
-    Enforces form-eligibility and single-operator assignment lock.
+    Operator begins filing on the Gujarat government portal (FS-H1, FS-H2).
+    Enforces form-eligibility, state transition, and single-operator assignment lock.
     """
     sub = db.submissions.get(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Enforce state machine transition (FS-H2)
+    validate_status_transition(sub.get("status", "submitted"), "operator_filling")
     
     is_admin = current_user.get("role") == "admin"
     operator_id = current_user["id"]
@@ -121,10 +125,13 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
 @router.post("/submissions/{submission_id}/update-status", dependencies=[Depends(require_role(["operator", "admin"]))])
 def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate, current_user: dict = Depends(require_role(["operator", "admin"]))):
     """
-    Update application filing status (FS-H1).
-    Enforces assigned operator authorization.
+    Update application filing status (FS-H1, FS-H2).
+    Enforces assigned operator authorization and state machine transition rules.
     """
     sub = check_submission_access(submission_id, current_user, require_write=True, require_assigned_operator=True)
+    
+    # Enforce state machine transition (FS-H2)
+    validate_status_transition(sub["status"], payload.status)
     
     old_status = sub["status"]
     sub["status"] = payload.status
