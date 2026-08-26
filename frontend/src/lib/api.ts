@@ -50,7 +50,30 @@ export class ApiService {
     } catch (e) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('API connection fallback, using local mock auth (DEV ONLY)');
-        const mockUser = { id: 'c0000000-0000-0000-0000-000000000001', email, role, full_name: fullName || 'નાગરિક (Citizen)' };
+        let resolvedRole = role;
+        let userId = 'c0000000-0000-0000-0000-000000000001';
+        let name = fullName || 'નાગરિક (Citizen)';
+        let district = 'Ahmedabad';
+
+        const lowerEmail = email.toLowerCase().trim();
+        if (lowerEmail.includes('admin') || role === 'admin') {
+          resolvedRole = 'admin';
+          userId = 'admin-001';
+          name = fullName || 'Gujarat Seva Admin';
+        } else if (lowerEmail.includes('operator') || lowerEmail.includes('vicky') || role === 'operator') {
+          resolvedRole = 'operator';
+          userId = 'op-001';
+          name = fullName || 'Vicky Operator';
+        }
+
+        const mockUser = {
+          id: userId,
+          email,
+          role: resolvedRole,
+          full_name: name,
+          district: district,
+          phone: phone || '+91 98250 44551'
+        };
         if (typeof window !== 'undefined') {
           localStorage.setItem('formseva_token', 'mock-token');
           localStorage.setItem('formseva_user', JSON.stringify(mockUser));

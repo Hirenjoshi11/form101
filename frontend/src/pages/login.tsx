@@ -34,8 +34,16 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const authRes = await ApiService.login(email.trim(), 'citizen', email.split('@')[0], '9825044551', password);
-      const userRole = authRes.user?.role || 'citizen';
+      const lower = email.trim().toLowerCase();
+      let targetRole = 'citizen';
+      if (lower.includes('admin')) {
+        targetRole = 'admin';
+      } else if (lower.includes('operator') || lower.includes('vicky')) {
+        targetRole = 'operator';
+      }
+
+      const authRes = await ApiService.login(email.trim(), targetRole, email.split('@')[0], '9825044551', password);
+      const userRole = authRes.user?.role || targetRole;
       if (userRole === 'admin') {
         router.push('/admin');
       } else if (userRole === 'operator') {
