@@ -18,6 +18,35 @@ export const OtpModal: React.FC<Props> = ({ otpRequest, isOpen, onClose, onSubmi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 mins in seconds
+  const [autoFillConsent, setAutoFillConsent] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    let abortController: AbortController | null = null;
+    if (autoFillConsent && 'credentials' in navigator && window.OTPCredential) {
+      abortController = new AbortController();
+      navigator.credentials.get({
+        otp: { transport: ['sms'] },
+        signal: abortController.signal
+      } as any).then((otp: any) => {
+        if (otp && otp.code) {
+          setCode(otp.code);
+          // Optional: auto-submit here if desired, but waiting for user to click is safer
+        }
+      }).catch(err => {
+        if (err.name !== 'AbortError') {
+          console.warn('WebOTP API error:', err);
+        }
+      });
+    }
+
+    return () => {
+      if (abortController) {
+        abortController.abort();
+      }
+    };
+  }, [isOpen, autoFillConsent]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -129,6 +158,20 @@ export const OtpModal: React.FC<Props> = ({ otpRequest, isOpen, onClose, onSubmi
                     placeholder="••••••"
                     className="w-full text-center text-2xl sm:text-3xl font-mono tracking-widest py-3 px-4 rounded-2xl border-2 border-[#159447] focus:ring-4 focus:ring-emerald-100 outline-none text-slate-900 bg-white"
                   />
+                </div>
+
+                <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+                  <input
+                    type="checkbox"
+                    id="autoFillConsent"
+                    checked={autoFillConsent}
+                    onChange={(e) => setAutoFillConsent(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-[#159447] rounded border-slate-300 focus:ring-[#159447]"
+                  />
+                  <label htmlFor="autoFillConsent" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
+                    <span className="font-bold text-slate-800 block mb-0.5">Allow FormSeva to auto-fill OTPs?</span>
+                    By checking this, you consent to reading SMS codes securely via Android browser. Default off.
+                  </label>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row gap-2.5 pt-2">

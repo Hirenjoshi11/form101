@@ -189,9 +189,14 @@ export default function OperatorPage() {
       loadQueue();
     };
 
+    const pollInterval = setInterval(() => {
+      loadQueue();
+    }, 10000); // 10 second polling for instant queue
+
     window.addEventListener('formseva_data_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('formseva_data_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };

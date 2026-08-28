@@ -75,11 +75,11 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
                 detail="Access forbidden: You are not certified/eligible to process this form category."
             )
         
-        # Check if already actively in progress with a different operator
-        if sub.get("status") == "operator_filling" and sub.get("assigned_operator_id") and sub["assigned_operator_id"] != operator_id:
+        # Enforce strict assignment check
+        if sub.get("assigned_operator_id") and sub["assigned_operator_id"] != operator_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access forbidden: This application is already actively being processed by another operator."
+                detail="Access forbidden: This application is assigned to another operator."
             )
     
     operator = db.operators.get(current_user["id"])
@@ -101,7 +101,7 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
         "title_hi": f"ऑपरेटर {operator_name} आपका फॉर्म भर रहे हैं",
         "title_en": f"Operator {operator_name} is processing your application",
         "message_gu": f"ઓપરેટર {operator_name} દ્વારા પોર્ટલ પર તમારું ફોર્મ ભરવાનું શરૂ થયું છે. સરકારી પોર્ટલ તરફથી SMS દ્વારા OTP આવે ત્યારે એપ્લિકેશનમાં દાખલ કરવા તૈયાર રહેશો.",
-        "message_hi": f"ऑपरेटर {operator_name} દ્વારા પોર્ટલ પર તમારું ફોર્મ ભરવાનું શરૂ થયું છે. OTP આવે ત્યારે એપ્લિકેશનમાં દાખલ કરવા તૈયાર રહેશો.",
+        "message_hi": f"ऑपरेटर {operator_name} द्वारा पोर्टल पर आपका फॉर्म भरना शुरू कर दिया गया है। सरकारी पोर्टल से SMS द्वारा OTP आने पर एप्लीकेशन में दर्ज करने के लिए तैयार रहें।",
         "message_en": f"Operator {operator_name} has started filing your application on the government portal. Please be ready with the OTP sent to your phone.",
         "notification_type": "status_change",
         "is_read": False,
