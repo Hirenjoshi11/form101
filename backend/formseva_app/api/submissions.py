@@ -186,11 +186,34 @@ def create_submission(payload: SubmissionCreate, current_user: dict = Depends(ge
     # Encrypt PII
     enc_user_phone = encrypt_data(payload.user_phone, dek) if getattr(payload, "user_phone", None) else None
     
+    # Auto-assign to eligible operator with lowest workload
+    assigned_op_id = None
+    res_assignments = supabase.table("operator_form_assignments").select("operator_id").eq("form_id", form["id"]).eq("is_active", True).execute()
+    eligible_op_ids = [a["operator_id"] for a in (res_assignments.data or [])]
+    
+    if eligible_op_ids:
+        res_ops = supabase.table("operators").select("id, assigned_count").in_("id", eligible_op_ids).eq("is_active", True).execute()
+        if res_ops.data:
+            sorted_ops = sorted(res_ops.data, key=lambda x: x.get("assigned_count", 0))
+            assigned_op_id = sorted_ops[0]["id"]
+            # Increment assigned count
+            new_count = sorted_ops[0].get("assigned_count", 0) + 1
+            supabase.table("operators").update({"assigned_count": new_count}).eq("id", assigned_op_id).execute()
+            
+            # Update memory store if present (for local testing parity)
+            try:
+                from formseva_app.core.database import db
+                if assigned_op_id in db.operators:
+                    db.operators[assigned_op_id]["assigned_count"] = new_count
+            except ImportError:
+                pass
+
     new_sub = {
         "id": submission_id,
         "application_number": app_number,
         "user_id": current_user["id"],
         "form_id": form["id"],
+        "assigned_operator_id": assigned_op_id,
         "status": "submitted",
         "official_fee": official_fee,
         "service_fee": service_fee,

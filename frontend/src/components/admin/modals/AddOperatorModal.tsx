@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserPlus, X } from 'lucide-react';
-import { Operator } from '@/lib/types';
+import { Operator, CertificateForm } from '@/lib/types';
 import { ApiService } from '@/lib/api';
 
 interface AddOperatorModalProps {
@@ -8,45 +8,63 @@ interface AddOperatorModalProps {
   onClose: () => void;
   onOperatorAdded: (newOp: Operator) => void;
   showToast: (msg: string) => void;
+  formsList?: CertificateForm[];
 }
 
 export const AddOperatorModal: React.FC<AddOperatorModalProps> = ({
   isOpen,
   onClose,
   onOperatorAdded,
-  showToast
+  showToast,
+  formsList = []
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [district, setDistrict] = useState('Ahmedabad');
+  const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  const toggleFormSelection = (formId: string) => {
+    setSelectedFormIds(prev => 
+      prev.includes(formId) ? prev.filter(id => id !== formId) : [...prev, formId]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) return;
     setSubmitting(true);
     try {
-      const newOp = await ApiService.addOperator({
+      const payload = {
         full_name: name,
         email,
-        phone: phone || '+91 98250 00000',
-        district
-      });
-      onOperatorAdded(newOp);
-      showToast('New operator registered successfully');
+        phone,
+        district,
+        is_active: true
+      };
+      const newOp = await ApiService.createOperator(payload);
+      const newFormIds = await ApiService.updateOperatorAssignments(newOp.id, selectedFormIds);
+      
+      onOperatorAdded({ ...newOp, assigned_form_ids: newFormIds });
+      showToast('Operator successfully registered and assigned');
+      
+      // Reset form
       setName('');
       setEmail('');
       setPhone('');
+      setDistrict('Ahmedabad');
+      setSelectedFormIds([]);
       onClose();
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to create operator');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to register operator');
     } finally {
       setSubmitting(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
@@ -124,6 +142,31 @@ export const AddOperatorModal: React.FC<AddOperatorModalProps> = ({
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
+          </div>
+
+          <div className="pt-2">
+            <label className="block text-xs font-bold text-[#18232D] uppercase tracking-wider mb-2">
+              Assigned Services
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              {formsList.map(form => (
+                <label key={form.id} className="flex items-start gap-2.5 cursor-pointer group p-1.5 hover:bg-slate-100 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={selectedFormIds.includes(form.id)}
+                    onChange={() => toggleFormSelection(form.id)}
+                    className="w-4 h-4 mt-0.5 text-[#159447] rounded border-slate-300 focus:ring-[#159447]"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-800 line-clamp-1">{form.title_en}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{form.department_name_en}</span>
+                  </div>
+                </label>
+              ))}
+              {formsList.length === 0 && (
+                <span className="text-xs text-slate-500">No services available to assign.</span>
+              )}
+            </div>
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-3">

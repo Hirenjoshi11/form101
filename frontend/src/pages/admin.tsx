@@ -518,6 +518,7 @@ export default function AdminPage() {
           onClose={() => setShowAddOperatorModal(false)}
           onOperatorAdded={newOp => setOperators(prev => [newOp, ...prev])}
           showToast={showToast}
+          formsList={formsList}
         />
 
         <EditOperatorModal
@@ -526,6 +527,7 @@ export default function AdminPage() {
           onOperatorUpdated={updated => setOperators(prev => prev.map(op => (op.id === updated.id ? updated : op)))}
           onDeleteRequest={op => setDeleteOpTarget(op)}
           showToast={showToast}
+          formsList={formsList}
         />
 
         <AssignSubmissionModal

@@ -755,6 +755,32 @@ export class ApiService {
     return updatedOp || { id: operatorId, full_name: '', email: '', district: '', assigned_count: 0, completed_count: 0, is_active: true, ...payload };
   }
 
+  static async updateOperatorAssignments(operatorId: string, formIds: string[]): Promise<string[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/operator-assignments/batch`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ operator_id: operatorId, form_ids: formIds })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const ops = await this.getOperators();
+        const updated = ops.map(op => {
+          if (op.id === operatorId) {
+            return { ...op, assigned_form_ids: data.assigned_form_ids };
+          }
+          return op;
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
+        }
+        return data.assigned_form_ids || [];
+      }
+    } catch (e) {}
+    return [];
+  }
+
   static async deleteOperator(operatorId: string): Promise<boolean> {
     const ops = await this.getOperators();
     const updated = ops.filter(op => op.id !== operatorId);

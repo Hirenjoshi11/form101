@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit2, X, Trash2, Save } from 'lucide-react';
-import { Operator } from '@/lib/types';
+import { Operator, CertificateForm } from '@/lib/types';
 import { ApiService } from '@/lib/api';
 
 interface EditOperatorModalProps {
@@ -9,6 +9,7 @@ interface EditOperatorModalProps {
   onOperatorUpdated: (updated: Operator) => void;
   onDeleteRequest: (op: Operator) => void;
   showToast: (msg: string) => void;
+  formsList?: CertificateForm[];
 }
 
 export const EditOperatorModal: React.FC<EditOperatorModalProps> = ({
@@ -16,19 +17,30 @@ export const EditOperatorModal: React.FC<EditOperatorModalProps> = ({
   onClose,
   onOperatorUpdated,
   onDeleteRequest,
-  showToast
+  showToast,
+  formsList = []
 }) => {
   if (!operator) return null;
 
   const [formData, setFormData] = useState<Operator>({ ...operator });
+  const [selectedFormIds, setSelectedFormIds] = useState<string[]>(operator.assigned_form_ids || []);
   const [submitting, setSubmitting] = useState(false);
+
+  const toggleFormSelection = (formId: string) => {
+    setSelectedFormIds(prev => 
+      prev.includes(formId) ? prev.filter(id => id !== formId) : [...prev, formId]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const updated = await ApiService.updateOperator(formData.id, formData);
-      onOperatorUpdated(updated);
+      const updatedOpData = { ...formData, assigned_form_ids: selectedFormIds };
+      const updated = await ApiService.updateOperator(formData.id, updatedOpData);
+      const newFormIds = await ApiService.updateOperatorAssignments(formData.id, selectedFormIds);
+      
+      onOperatorUpdated({ ...updated, assigned_form_ids: newFormIds });
       showToast('Operator profile updated successfully');
       onClose();
     } catch (e: any) {
@@ -113,7 +125,7 @@ export const EditOperatorModal: React.FC<EditOperatorModalProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-3 pt-2 pb-2">
             <input
               type="checkbox"
               id="opActiveCheck"
@@ -124,6 +136,31 @@ export const EditOperatorModal: React.FC<EditOperatorModalProps> = ({
             <label htmlFor="opActiveCheck" className="text-xs font-bold text-[#18232D]">
               Operator is Active and available for application processing
             </label>
+          </div>
+
+          <div className="pt-2">
+            <label className="block text-xs font-bold text-[#18232D] uppercase tracking-wider mb-2">
+              Assigned Services
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              {formsList.map(form => (
+                <label key={form.id} className="flex items-start gap-2.5 cursor-pointer group p-1.5 hover:bg-slate-100 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={selectedFormIds.includes(form.id)}
+                    onChange={() => toggleFormSelection(form.id)}
+                    className="w-4 h-4 mt-0.5 text-[#159447] rounded border-slate-300 focus:ring-[#159447]"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-800 line-clamp-1">{form.title_en}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{form.department_name_en}</span>
+                  </div>
+                </label>
+              ))}
+              {formsList.length === 0 && (
+                <span className="text-xs text-slate-500">No services available to assign.</span>
+              )}
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
