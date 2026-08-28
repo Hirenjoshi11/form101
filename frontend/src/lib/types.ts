@@ -22,6 +22,7 @@ export interface FormField {
   help_text_en?: string;
   options_json?: FormFieldOption[];
   validation_regex?: string;
+  validation?: Record<string, any>;
   is_required: boolean;
   sort_order: number;
 }
@@ -299,3 +300,111 @@ export interface FeedbackFilterOptions {
   service_id?: string;
   search?: string;
 }
+
+// -----------------------------------------------------------------------------
+// Financial, Revenue & Remittance Analytics Types
+// -----------------------------------------------------------------------------
+
+export interface BillingSummary {
+  gross_revenue: number;
+  portal_earnings: number;
+  govt_remittance: number;
+  total_transactions: number;
+  successful_count: number;
+  pending_count: number;
+  failed_count: number;
+  refunded_count: number;
+  avg_order_value: number;
+  success_rate: number;
+  pending_settlement: number;
+  period?: { from_date?: string; to_date?: string };
+}
+
+export interface DailyRevenueRecord {
+  date: string;
+  day: string;
+  weekday: string;
+  gross: number;
+  govt: number;
+  portal: number;
+  txns: number;
+  successful_txns: number;
+}
+
+export interface MonthlyRevenueRecord {
+  month_num: number;
+  month: string;
+  monthShort: string;
+  gross: number;
+  govt: number;
+  portal: number;
+  txns: number;
+}
+
+export interface ServiceRevenueBreakdown {
+  slug: string;
+  name: string;
+  name_gu?: string;
+  revenue: number;
+  govt_fee: number;
+  portal_fee: number;
+  count: number;
+  percentage: number;
+  color?: string;
+}
+
+export interface PlatformProfitRecord {
+  service_id: string;
+  service_slug: string;
+  service_title_en: string;
+  service_title_gu: string;
+  department_name_en: string;
+  department_name_gu: string;
+  applications_count: number;
+  unit_service_fee: number;
+  gross_platform_revenue: number;
+  operator_payout_expense: number;
+  net_platform_profit: number;
+  profit_margin_percentage: number;
+  profit_share_percentage: number;
+}
+
+export interface GovtRemittanceRecord {
+  id: string;
+  department_name_en: string;
+  department_name_gu: string;
+  portal_name: string;
+  service_slug: string;
+  service_title_en: string;
+  service_title_gu: string;
+  unit_govt_fee: number;
+  applications_remitted: number;
+  total_remitted_inr: number;
+  treasury_head_code: string;
+  remittance_status: 'remitted' | 'settled' | 'pending' | 'verified';
+  settlement_gateway: string;
+  last_settlement_date: string;
+}
+
+export interface BillingTransaction {
+  id: string;
+  invoice_no: string;
+  submission_id?: string;
+  application_number: string;
+  date: string;
+  citizen_name: string;
+  citizen_phone: string;
+  district: string;
+  form_slug: string;
+  form_title_en: string;
+  form_title_gu?: string;
+  govt_fee: number;
+  portal_fee: number;
+  total_fee: number;
+  payment_method: 'upi' | 'card' | 'netbanking' | 'qr' | string;
+  payment_reference?: string;
+  operator_name?: string;
+  status: 'paid' | 'succeeded' | 'pending' | 'failed' | 'refunded';
+  receipt_url?: string;
+}
+

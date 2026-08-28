@@ -152,76 +152,47 @@ def check_submission_access(
     require_write: bool = False,
     require_assigned_operator: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Unified Reusable Authorization Policy for Submissions.
-    - Citizen: Must own the submission (sub["user_id"] == current_user["id"]).
-    - Operator:
-      - Read Access: Must be assigned OR form-eligible for this form type.
-      - Action/Write Access: Must be assigned to this submission AND form-eligible.
-    - Admin: Full system oversight.
-    """
-    from formseva_app.core.database import db
+    from formseva_app.core.supabase_client import get_supabase_admin_client
 
-    sub = db.submissions.get(submission_id)
-    if not sub:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application submission not found."
-        )
+    supabase = get_supabase_admin_client()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database client unavailable")
+        
+    res = supabase.table("form_submissions").select("*").eq("id", submission_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Application submission not found.")
+    sub = res.data[0]
 
     role = current_user.get("role", "citizen")
     user_id = current_user.get("id")
 
-    # 1. Admin: Unrestricted Access
-    if role == "admin":
+    if role == "super_admin" or role == "admin":
         return sub
 
-    # 2. Citizen: Strict Resource Ownership Check
     if role == "citizen":
         if sub.get("user_id") != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access forbidden: You are not authorized to view or modify this application."
-            )
+            raise HTTPException(status_code=403, detail="Access forbidden: You are not authorized to view or modify this application.")
         return sub
 
-    # 3. Operator: Strict Assignment and Form-Eligibility Check
     if role == "operator":
         operator_id = user_id
         is_assigned = (sub.get("assigned_operator_id") == operator_id)
         
         # Check operator certified form eligibility
-        is_form_eligible = any(
-            a.get("operator_id") == operator_id and 
-            a.get("form_id") == sub.get("form_id") and 
-            a.get("is_active", True)
-            for a in db.operator_form_assignments.values()
-        )
+        res_eligibility = supabase.table("operator_form_assignments").select("*").eq("operator_id", operator_id).eq("form_id", sub.get("form_id")).eq("is_active", True).execute()
+        is_form_eligible = len(res_eligibility.data) > 0
 
         if require_write or require_assigned_operator:
             if not is_assigned:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access forbidden: You are not the assigned operator for this application."
-                )
+                raise HTTPException(status_code=403, detail="Access forbidden: You are not the assigned operator for this application.")
             if not is_form_eligible:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access forbidden: You are not certified/eligible to process this form category."
-                )
+                raise HTTPException(status_code=403, detail="Access forbidden: You are not certified/eligible to process this form category.")
         else:
-            # Read access: Operator must be assigned OR eligible for the form category
             if not (is_assigned or is_form_eligible):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access forbidden: You are not authorized to access applications in this form category."
-                )
+                raise HTTPException(status_code=403, detail="Access forbidden: You are not authorized to access applications in this form category.")
         return sub
 
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Access forbidden: Unknown or unauthorized role."
-    )
+    raise HTTPException(status_code=403, detail="Access forbidden: Unknown or unauthorized role.")
 
 # ── PII Minimization & Masking Helpers (FS-H6) ──
 def mask_phone(phone: Optional[str]) -> str:

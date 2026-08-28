@@ -771,3 +771,167 @@ def get_billing_transactions(
         "transactions": paginated
     }
 
+@router.get("/billing/govt-remittances", dependencies=[Depends(require_role(["admin"]))])
+def get_govt_remittances(from_date: Optional[str] = None, to_date: Optional[str] = None):
+    """
+    Returns official government treasury fee remittances grouped by department and portal.
+    """
+    filtered = filter_db_payments(from_date, to_date, payment_status="succeeded")
+    
+    dept_mappings = {
+        "income_certificate": {
+            "department_en": "Revenue & Disaster Management Department",
+            "department_gu": "મહેસૂલ અને આપત્તિ વ્યવસ્થાપન વિભાગ",
+            "portal": "Digital Gujarat Portal / Jan Seva Kendra",
+            "head": "0029-00-101-01 (Revenue Certificate Heads)",
+            "unit_fee": 20.0
+        },
+        "ews_certificate": {
+            "department_en": "Social Justice & Empowerment Department",
+            "department_gu": "સામાજિક ન્યાય અને અધિકારીતા વિભાગ",
+            "portal": "Digital Gujarat Online Services",
+            "head": "0235-60-200-02 (Social Welfare Schemes)",
+            "unit_fee": 20.0
+        },
+        "caste_ncl_certificate": {
+            "department_en": "Social Justice & Empowerment Department",
+            "department_gu": "સામાજિક ન્યાય અને અધિકારીતા વિભાગ",
+            "portal": "e-Samaj Kalyan & Digital Gujarat",
+            "head": "0235-60-200-04 (OBC/SEBC Welfare Fund)",
+            "unit_fee": 20.0
+        },
+        "land_records_7_12": {
+            "department_en": "Revenue Department - Land Records",
+            "department_gu": "મહેસૂલ વિભાગ - જમીન દફતર",
+            "portal": "AnyRoR Gujarat Cyber Treasury",
+            "head": "0029-00-800-01 (Digitized RoR Copy Fee)",
+            "unit_fee": 15.0
+        },
+        "driving_licence_rto": {
+            "department_en": "Ports & Transport Department (RTO Gujarat)",
+            "department_gu": "બંદરો અને વાહનવ્યવહાર વિભાગ (RTO)",
+            "portal": "Parivahan Sarathi / Cyber Treasury Gujarat",
+            "head": "0041-00-102-01 (Motor Vehicles DL Fee)",
+            "unit_fee": 400.0
+        },
+        "neet_exam": {
+            "department_en": "Education Department & NTA Facilitation",
+            "department_gu": "શિક્ષણ વિભાગ અને NTA સહાયતા કેન્દ્ર",
+            "portal": "NTA / Cyber Treasury Govt Exam Remittance",
+            "head": "0202-01-102-03 (National Exam Govt Pool)",
+            "unit_fee": 1700.0
+        }
+    }
+    
+    forms_map = {f["slug"]: f for f in db.forms.values()}
+    for f in db.forms.values():
+        forms_map[f["id"]] = f
+        
+    dept_buckets = {}
+    for p in filtered:
+        f_slug = p.get("form_slug") or p.get("form_id") or "income_certificate"
+        f_info = forms_map.get(f_slug, {})
+        slug_key = f_info.get("slug", f_slug)
+        meta = dept_mappings.get(slug_key, {
+            "department_en": "General Administration Department",
+            "department_gu": "સામાન્ય વહીવટ વિભાગ",
+            "portal": "Digital Gujarat Portal",
+            "head": "0070-60-800-01 (State Treasury Services)",
+            "unit_fee": float(p.get("govt_fee", 20.0))
+        })
+        
+        if slug_key not in dept_buckets:
+            dept_buckets[slug_key] = {
+                "id": f"dept-{slug_key}",
+                "department_name_en": meta["department_en"],
+                "department_name_gu": meta["department_gu"],
+                "portal_name": meta["portal"],
+                "service_slug": slug_key,
+                "service_title_en": f_info.get("title_en", slug_key.replace("_", " ").title()),
+                "service_title_gu": f_info.get("title_gu", "સરકારી સેવા"),
+                "unit_govt_fee": meta["unit_fee"],
+                "applications_remitted": 0,
+                "total_remitted_inr": 0.0,
+                "treasury_head_code": meta["head"],
+                "remittance_status": "remitted",
+                "settlement_gateway": "Cyber Treasury Gujarat (SBI e-Pay)",
+                "last_settlement_date": "2026-08-23"
+            }
+            
+        g_fee = float(p.get("govt_fee", meta["unit_fee"]))
+        dept_buckets[slug_key]["total_remitted_inr"] += g_fee
+        dept_buckets[slug_key]["applications_remitted"] += 1
+        
+    result = []
+    for k, v in sorted(dept_buckets.items(), key=lambda x: x[1]["total_remitted_inr"], reverse=True):
+        v["total_remitted_inr"] = round(v["total_remitted_inr"], 2)
+        result.append(v)
+        
+    return result
+
+@router.get("/billing/profit-summary", dependencies=[Depends(require_role(["admin"]))])
+def get_platform_profit_summary(from_date: Optional[str] = None, to_date: Optional[str] = None):
+    """
+    Returns platform gross earnings, operator processing expenses, and net profit per service.
+    """
+    filtered = filter_db_payments(from_date, to_date, payment_status="succeeded")
+    forms_map = {f["slug"]: f for f in db.forms.values()}
+    for f in db.forms.values():
+        forms_map[f["id"]] = f
+        
+    # Operator processing payout per application
+    operator_cost_rates = {
+        "income_certificate": 12.0,
+        "ews_certificate": 18.0,
+        "caste_ncl_certificate": 16.0,
+        "land_records_7_12": 8.0,
+        "driving_licence_rto": 35.0,
+        "neet_exam": 45.0
+    }
+    
+    profit_buckets = {}
+    for p in filtered:
+        f_slug = p.get("form_slug") or p.get("form_id") or "income_certificate"
+        f_info = forms_map.get(f_slug, {})
+        slug_key = f_info.get("slug", f_slug)
+        
+        if slug_key not in profit_buckets:
+            portal_unit = float(f_info.get("service_fee", 50.0))
+            op_cost_unit = operator_cost_rates.get(slug_key, 15.0)
+            profit_buckets[slug_key] = {
+                "service_id": f_info.get("id", slug_key),
+                "service_slug": slug_key,
+                "service_title_en": f_info.get("title_en", slug_key.replace("_", " ").title()),
+                "service_title_gu": f_info.get("title_gu", "સેવા"),
+                "department_name_en": f_info.get("department_name_en", "Citizen Services"),
+                "department_name_gu": f_info.get("department_name_gu", "નાગરિક સેવા"),
+                "applications_count": 0,
+                "unit_service_fee": portal_unit,
+                "gross_platform_revenue": 0.0,
+                "operator_payout_expense": 0.0,
+                "net_platform_profit": 0.0,
+                "profit_margin_percentage": 0.0,
+                "profit_share_percentage": 0.0
+            }
+            
+        p_fee = float(p.get("portal_fee", profit_buckets[slug_key]["unit_service_fee"]))
+        op_cost = operator_cost_rates.get(slug_key, 15.0)
+        
+        profit_buckets[slug_key]["applications_count"] += 1
+        profit_buckets[slug_key]["gross_platform_revenue"] += p_fee
+        profit_buckets[slug_key]["operator_payout_expense"] += op_cost
+        
+    total_net = sum(b["gross_platform_revenue"] - b["operator_payout_expense"] for b in profit_buckets.values()) or 1.0
+    
+    result = []
+    for k, b in sorted(profit_buckets.items(), key=lambda x: (x[1]["gross_platform_revenue"] - x[1]["operator_payout_expense"]), reverse=True):
+        b["net_platform_profit"] = round(b["gross_platform_revenue"] - b["operator_payout_expense"], 2)
+        b["gross_platform_revenue"] = round(b["gross_platform_revenue"], 2)
+        b["operator_payout_expense"] = round(b["operator_payout_expense"], 2)
+        b["profit_margin_percentage"] = round((b["net_platform_profit"] / b["gross_platform_revenue"]) * 100, 1) if b["gross_platform_revenue"] > 0 else 0.0
+        b["profit_share_percentage"] = round((b["net_platform_profit"] / total_net) * 100, 1) if total_net > 0 else 0.0
+        result.append(b)
+        
+    return result
+
+

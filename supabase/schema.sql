@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     auth_id UUID UNIQUE, -- References auth.users(id) in Supabase
     full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    phone VARCHAR(20),
+    email TEXT NOT NULL, -- Encrypted
+    email_hash VARCHAR(64) NOT NULL UNIQUE, -- Blind index for exact match lookups
+    phone TEXT, -- Encrypted
     preferred_language VARCHAR(5) DEFAULT 'gu' CHECK (preferred_language IN ('gu', 'hi', 'en')),
-    aadhaar_last_four VARCHAR(4),
+    aadhaar_last_four TEXT, -- Encrypted
+    wrapped_dek TEXT, -- Envelope encryption Data Encryption Key (encrypted by Master Key)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -99,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.form_fields (
     help_text_en TEXT,
     options_json JSONB DEFAULT '[]'::jsonb,
     validation_regex VARCHAR(255),
+    validation JSONB DEFAULT '{}'::jsonb,
     is_required BOOLEAN DEFAULT TRUE,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -132,9 +135,10 @@ CREATE TABLE IF NOT EXISTS public.form_submissions (
     ),
     govt_portal_application_id VARCHAR(100),
     govt_portal_url VARCHAR(255),
-    rejection_reason TEXT,
-    operator_notes TEXT,
-    user_phone VARCHAR(20),
+    rejection_reason TEXT, -- Encrypted
+    operator_notes TEXT, -- Encrypted
+    user_phone TEXT, -- Encrypted
+    wrapped_dek TEXT, -- Envelope encryption Data Encryption Key (encrypted by Master Key)
     official_fee NUMERIC(10, 2) DEFAULT 0.00,
     service_fee NUMERIC(10, 2) DEFAULT 0.00,
     total_fee NUMERIC(10, 2) NOT NULL,
@@ -189,6 +193,9 @@ CREATE TABLE IF NOT EXISTS public.otp_requests (
     otp_purpose_hi VARCHAR(255) DEFAULT 'डिजिटल गुजरात पोर्टल लॉगिन हेतु',
     otp_purpose_en VARCHAR(255) DEFAULT 'For Digital Gujarat Portal Login',
     status VARCHAR(50) DEFAULT 'requested' CHECK (status IN ('requested', 'submitted_by_citizen', 'verified', 'expired', 'cancelled')),
+    otp_ciphertext TEXT, -- Encrypted actual OTP
+    wrapped_dek TEXT, -- DEK for OTP encrypted by Master Key
+    entered_code_display VARCHAR(10), -- Masked version for frontend (e.g. "****56")
     requested_at TIMESTAMPTZ DEFAULT NOW(),
     submitted_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '10 minutes'),

@@ -48,6 +48,8 @@ class DatabaseStore:
             {"id": "b0000000-0000-0000-0000-000000000002", "full_name": "Nikhil", "email": "nikhil.operator@formseva.in", "phone": "+91 98251 22334", "district": "Vadodara", "assigned_count": 8, "completed_count": 94},
             {"id": "b0000000-0000-0000-0000-000000000003", "full_name": "DHulo", "email": "dhulo.operator@formseva.in", "phone": "+91 98252 33445", "district": "Surat", "assigned_count": 15, "completed_count": 142},
             {"id": "b0000000-0000-0000-0000-000000000004", "full_name": "Loy", "email": "loy.operator@formseva.in", "phone": "+91 98253 44556", "district": "Rajkot", "assigned_count": 5, "completed_count": 87},
+            {"id": "b0000000-0000-0000-0000-000000000005", "full_name": "Adi", "email": "adi.operator@formseva.in", "phone": "+91 98250 55110", "district": "Ahmedabad", "assigned_count": 0, "completed_count": 0},
+            {"id": "b0000000-0000-0000-0000-000000000006", "full_name": "Ishan", "email": "ishan.operator@formseva.in", "phone": "+91 98250 55220", "district": "Ahmedabad", "assigned_count": 0, "completed_count": 0},
         ]
         for op in operators_data:
             self.operators[op["id"]] = {
@@ -392,14 +394,14 @@ class DatabaseStore:
                 "title_gu": "NEET UG મેડિકલ પ્રવેશ પરીક્ષા ૨૦૨૬",
                 "title_hi": "नीट यूजी मेडिकल प्रवेश परीक्षा 2026",
                 "title_en": "NEET UG Medical Entrance Exam Registration",
-                "description_gu": "NTA NEET UG 2026 મેડિકલ અને ડેન્ટલ પ્રવેશ પરીક્ષાનું સચોટ ઓનલાઈન ફોર્મ ફાઈલિંગ, ફોટો-સહી ચકાસણી અને સેન્ટર સિલેક્શન.",
-                "description_hi": "NTA नीट यूजी 2026 ऑनलाइन परीक्षा पंजीकरण, दस्तावेज सत्यापन एवं परीक्षा केंद्र चयन।",
-                "description_en": "NTA NEET UG National Medical Entrance Registration — Class 10/12 academic validation, category verification, document resizing, and bilingual examination centre preference.",
+                "description_gu": "NTA NEET UG 2026 પ્રવેશ પરીક્ષા ફોર્મ. કેટેગરી મુજબ સરકારી ફી: જનરલ (UR): ₹૧,૭૦૦ | EWS / OBC-NCL: ₹૧,૬૦૦ | SC / ST / PwBD / તૃતીય પંથી: ₹૧,૦૦૦.",
+                "description_hi": "NTA नीट यूजी 2026 परीक्षा फॉर्म। श्रेणीवार शुल्क: सामान्य (UR): ₹1,700 | EWS / OBC-NCL: ₹1,600 | SC / ST / PwBD / तृतीय पंथी: ₹1,000.",
+                "description_en": "NTA NEET UG 2026 Registration. Category-Wise Fee Structure: General (UR): ₹1,700 | General-EWS / OBC-NCL: ₹1,600 | SC / ST / PwBD / Third Gender: ₹1,000.",
                 "department_name_gu": "નેશનલ ટેસ્ટિંગ એજન્સી (NTA) / કેન્દ્રીય આરોગ્ય મંત્રાલય",
                 "department_name_hi": "राष्ट्रीय परीक्षा एजेंसी (NTA)",
                 "department_name_en": "National Testing Agency (NTA, Govt of India)",
                 "official_fee": 1700.00,
-                "service_fee": 1900.00,
+                "service_fee": 200.00,
                 "turnaround_days": 2,
                 "expected_otp_count": 2,
                 "version": "NEET-UG-2026-NTA-V1.0",
@@ -436,6 +438,16 @@ class DatabaseStore:
 
             # Loy (Rajkot) -> Driving / Learner Licence Assistance (Sarathi RTO)
             {"op_id": "b0000000-0000-0000-0000-000000000004", "form_id": "f0000000-0000-0000-0000-000000000005"},
+            
+            # Adi -> 7/12, Income, EWS
+            {"op_id": "b0000000-0000-0000-0000-000000000005", "form_id": "f0000000-0000-0000-0000-000000000004"},
+            {"op_id": "b0000000-0000-0000-0000-000000000005", "form_id": "f0000000-0000-0000-0000-000000000001"},
+            {"op_id": "b0000000-0000-0000-0000-000000000005", "form_id": "f0000000-0000-0000-0000-000000000002"},
+
+            # Ishan -> NCL, Driving, NEET
+            {"op_id": "b0000000-0000-0000-0000-000000000006", "form_id": "f0000000-0000-0000-0000-000000000003"},
+            {"op_id": "b0000000-0000-0000-0000-000000000006", "form_id": "f0000000-0000-0000-0000-000000000005"},
+            {"op_id": "b0000000-0000-0000-0000-000000000006", "form_id": "f0000000-0000-0000-0000-000000000006"},
         ]
         for a in initial_assignments:
             aid = str(uuid.uuid4())
@@ -759,7 +771,7 @@ class DatabaseStore:
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "gender", "step_section": "candidate", "field_type": "select", "label_gu": "લિંગ / Gender", "label_hi": "लिंग", "label_en": "Gender", "options_json": [
                 {"value": "female", "label_gu": "સ્ત્રી (Female)", "label_hi": "महिला", "label_en": "Female"},
                 {"value": "male", "label_gu": "પુરુષ (Male)", "label_hi": "पुरुष", "label_en": "Male"},
-                {"value": "third_gender", "label_gu": "તૃતીય પંથી (Third Gender)", "label_hi": "तृतीय पंथी", "label_en": "Third Gender"}
+                {"value": "third_gender", "label_gu": "તૃતીય પંથી (Third Gender - ફી: ₹૧,૦૦૦)", "label_hi": "तृतीय पंथी (शुल्क: ₹1,000)", "label_en": "Third Gender (Fee: ₹1,000)"}
             ], "is_required": True, "sort_order": 5},
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "nationality", "step_section": "candidate", "field_type": "select", "label_gu": "રાષ્ટ્રીયતા (Nationality)", "label_hi": "राष्ट्रीयता", "label_en": "Nationality", "options_json": [
                 {"value": "indian", "label_gu": "ભારતીય (Indian)", "label_hi": "भारतीय", "label_en": "Indian"},
@@ -774,17 +786,17 @@ class DatabaseStore:
                 {"value": "election_card", "label_gu": "ચૂંટણી કાર્ડ (Voter ID Card)", "label_hi": "मतदाता पहचान पत्र", "label_en": "Voter ID Card"}
             ], "is_required": True, "sort_order": 7},
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "id_number", "step_section": "candidate", "field_type": "text", "label_gu": "ઓળખ પુરાવાનો નંબર", "label_hi": "पहचान प्रमाण संख्या", "label_en": "Identity Proof Number", "placeholder_gu": "નંબર દાખલ કરો", "placeholder_en": "Enter document number", "is_required": True, "sort_order": 8},
-            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "category", "step_section": "candidate", "field_type": "select", "label_gu": "કેટેગરી / અનામત વર્ગ", "label_hi": "वर्ग / श्रेणी", "label_en": "Category", "options_json": [
-                {"value": "general", "label_gu": "સામાન્ય (General / Unreserved)", "label_hi": "सामान्य (General)", "label_en": "General"},
-                {"value": "gen_ews", "label_gu": "જનરલ - EWS (General-EWS)", "label_hi": "जनरल - EWS", "label_en": "General-EWS"},
-                {"value": "obc_ncl", "label_gu": "OBC - NCL (સેન્ટ્રલ લિસ્ટ મુજબ નોન-ક્રીમીલેયર)", "label_hi": "OBC - NCL (केंद्रीय सूची)", "label_en": "OBC-NCL (Central List)"},
-                {"value": "sc", "label_gu": "અનુસૂચિત જાતિ (SC)", "label_hi": "अनुसूचित जाति (SC)", "label_en": "SC"},
-                {"value": "st", "label_gu": "અનુસૂચિત જનજાતિ (ST)", "label_hi": "अनुसूचित जनजाति (ST)", "label_en": "ST"}
+            {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "category", "step_section": "candidate", "field_type": "select", "label_gu": "કેટેગરી / અનામત વર્ગ (Category-Wise Fee)", "label_hi": "वर्ग / श्रेणी (Category-Wise Fee)", "label_en": "Category (NTA Category-Wise Fee)", "options_json": [
+                {"value": "general", "label_gu": "General (UR) - સામાન્ય / બિન-અનામત: ₹૧,૭૦૦", "label_hi": "General (UR) - सामान्य: ₹1,700", "label_en": "General (UR): ₹1,700"},
+                {"value": "gen_ews", "label_gu": "General-EWS - જનરલ-ઈડબલ્યુએસ: ₹૧,૬૦૦", "label_hi": "General-EWS - ईडब्ल्यूएस: ₹1,600", "label_en": "General-EWS: ₹1,600"},
+                {"value": "obc_ncl", "label_gu": "OBC-NCL - ઓબીસી નોન-ક્રીમીલેયર: ₹૧,૬૦૦", "label_hi": "OBC-NCL - अन्य पिछड़ा वर्ग: ₹1,600", "label_en": "OBC-NCL (Central List): ₹1,600"},
+                {"value": "sc", "label_gu": "SC - અનુસૂચિત જાતિ: ₹૧,૦૦૦", "label_hi": "SC - अनुसूचित जाति: ₹1,000", "label_en": "SC (Scheduled Caste): ₹1,000"},
+                {"value": "st", "label_gu": "ST - અનુસૂચિત જનજાતિ: ₹૧,૦૦૦", "label_hi": "ST - अनुसूचित जनजाति: ₹1,000", "label_en": "ST (Scheduled Tribe): ₹1,000"}
             ], "is_required": True, "sort_order": 9},
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "mobile_number", "step_section": "candidate", "field_type": "number", "label_gu": "ઉમેદવારનો મોબાઈલ નંબર", "label_hi": "उम्मीदवार मोबाइल नंबर", "label_en": "Candidate Mobile Number", "placeholder_gu": "10 અંકનો મોબાઈલ", "placeholder_en": "10-digit mobile", "is_required": True, "sort_order": 10},
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "pwd_status", "step_section": "candidate", "field_type": "select", "label_gu": "દિવ્યાંગ / PwBD ઉમેદવાર છે?", "label_hi": "क्या दिव्यांग (PwBD) उम्मीदवार हैं?", "label_en": "PwBD (Divyang) Status", "options_json": [
                 {"value": "no", "label_gu": "ના (No)", "label_hi": "नहीं", "label_en": "No"},
-                {"value": "yes", "label_gu": "હા (Yes - Benchmark Disability 40%+)", "label_hi": "हाँ", "label_en": "Yes (PwBD 40%+)"}
+                {"value": "yes", "label_gu": "હા (PwBD દિવ્યાંગ 40%+ - ફી: ₹૧,૦૦૦)", "label_hi": "हाँ (PwBD दिव्यांग 40%+ - शुल्क: ₹1,000)", "label_en": "Yes (PwBD 40%+ - Fee: ₹1,000)"}
             ], "is_required": True, "sort_order": 11},
             # Step 2: address
             {"form_id": "f0000000-0000-0000-0000-000000000006", "field_key": "country", "step_section": "address", "field_type": "text", "label_gu": "દેશ", "label_hi": "देश", "label_en": "Country", "placeholder_gu": "India", "placeholder_en": "India", "is_required": True, "sort_order": 12},

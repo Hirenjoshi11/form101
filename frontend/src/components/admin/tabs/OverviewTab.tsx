@@ -26,6 +26,7 @@ interface OverviewTabProps {
   onOpenCreateForm: () => void;
   onSelectSubmission: (sub: FormSubmission) => void;
   getStatusBadge: (status: string) => { bg: string; label: string };
+  onNavigateToBilling?: () => void;
   loading?: boolean;
 }
 
@@ -38,6 +39,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   onOpenCreateForm,
   onSelectSubmission,
   getStatusBadge,
+  onNavigateToBilling,
   loading = false
 }) => {
   const { language } = useLanguage();
@@ -73,6 +75,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {onNavigateToBilling && (
+            <button
+              onClick={onNavigateToBilling}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all"
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>3 Revenue Tables & Charts</span>
+            </button>
+          )}
           <button
             onClick={onOpenAddOperator}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#159447] hover:bg-[#12803c] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all"
@@ -159,7 +170,41 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       </div>
 
-      {/* ─── ROW 2: OPERATOR WORKLOAD & RECENT SUBMISSIONS ─── */}
+      {/* ─── ROW 2: FINANCIAL REVENUE & PROFIT QUICK SUMMARY BANNER ─── */}
+      {onNavigateToBilling && (
+        <div
+          onClick={onNavigateToBilling}
+          className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-5 cursor-pointer hover:border-emerald-500/50 transition-all group"
+        >
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="bg-[#159447] text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                3 Tables & Bar Chart
+              </span>
+              <h3 className="font-extrabold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
+                Financial Revenue, Profit & Government Remittance Control Room
+              </h3>
+            </div>
+            <p className="text-xs text-slate-300">
+              Access 3 specialized tables for Overall Gross Revenue, Our Side Platform Profit (~76.8% margin), and Government Treasury Payouts with interactive Daily/Monthly Bar Charts.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="text-right">
+              <span className="text-xs text-slate-400 block font-semibold">Total Revenue Inflow</span>
+              <span className="text-xl font-black text-emerald-400">
+                ₹{(stats?.total_revenue_inr || 224782).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <span className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-white group-hover:bg-[#159447] group-hover:scale-105 transition-all">
+              <ArrowUpRight className="w-5 h-5" />
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ROW 3: OPERATOR WORKLOAD & RECENT SUBMISSIONS ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 5 Cols: Operator Workload Summary */}
         <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
@@ -234,3 +279,4 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     </div>
   );
 };
+

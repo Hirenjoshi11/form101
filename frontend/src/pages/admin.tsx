@@ -442,6 +442,7 @@ export default function AdminPage() {
                 onOpenCreateForm={handleCreateNewFormInit}
                 onSelectSubmission={sub => setSelectedSubmissionDetails(sub)}
                 getStatusBadge={getStatusBadge}
+                onNavigateToBilling={() => setActiveTab('billing')}
                 loading={tabLoading}
               />
             )}

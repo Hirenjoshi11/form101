@@ -70,6 +70,7 @@ class FormFieldBase(BaseModel):
     help_text_en: Optional[str] = None
     options_json: List[FormFieldOption] = []
     validation_regex: Optional[str] = None
+    validation: Optional[Dict[str, Any]] = None
     is_required: bool = True
     sort_order: int = 0
 

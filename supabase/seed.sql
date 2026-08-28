@@ -9,13 +9,15 @@ VALUES
     ('a0000000-0000-0000-0000-000000000001', 'Gujarat Seva Admin', 'admin@formseva.gujarat.gov.in', 'super_admin', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- Seed 4 Operators
+-- Seed 6 Operators
 INSERT INTO public.operators (id, created_by_admin_id, full_name, email, phone, district, assigned_count, completed_count, is_active)
 VALUES 
     ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Vicky', 'vicky.operator@formseva.in', '+91 98250 11223', 'Ahmedabad', 12, 110, TRUE),
     ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Nikhil', 'nikhil.operator@formseva.in', '+91 98251 22334', 'Vadodara', 8, 94, TRUE),
     ('b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'DHulo', 'dhulo.operator@formseva.in', '+91 98252 33445', 'Surat', 15, 142, TRUE),
-    ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Loy', 'loy.operator@formseva.in', '+91 98253 44556', 'Rajkot', 5, 87, TRUE)
+    ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Loy', 'loy.operator@formseva.in', '+91 98253 44556', 'Rajkot', 5, 87, TRUE),
+    ('b0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Adi', 'adi.operator@formseva.in', '+91 98250 55110', 'Ahmedabad', 0, 0, TRUE),
+    ('b0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'Ishan', 'ishan.operator@formseva.in', '+91 98250 55220', 'Ahmedabad', 0, 0, TRUE)
 ON CONFLICT (email) DO NOTHING;
 
 -- Seed 1 Sample Citizen User for testing
@@ -391,3 +393,74 @@ UPDATE public.form_fields SET options_json = '[
     {"value": "English", "label_gu": "English (અંગ્રેજી)", "label_hi": "English", "label_en": "English"},
     {"value": "Hindi", "label_gu": "Hindi અને English", "label_hi": "Hindi एवं English", "label_en": "Hindi & English (Bilingual)"}
 ]'::jsonb WHERE form_id = 'f0000000-0000-0000-0000-000000000006' AND field_key = 'question_paper_medium';
+
+-- Update Form Fields Validation Rules
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'applicant_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'candidate_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'father_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'mother_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'father_husband_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'relation_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'sebc_caste_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z\u0A80-\u0AFF\u0900-\u097F\s\.\'\-]{2,100}$', validation = '{"min_length": 2, "max_length": 100, "class": "name"}'::jsonb WHERE field_key = 'caste_subcaste';
+UPDATE public.form_fields SET validation_regex = '^[6-9]\d{9}$', validation = '{"class": "mobile"}'::jsonb WHERE field_key = 'mobile_number';
+UPDATE public.form_fields SET validation_regex = '^[6-9]\d{9}$', validation = '{"class": "mobile"}'::jsonb WHERE field_key = 'emergency_mobile';
+UPDATE public.form_fields SET validation_regex = '^\d{12}$', validation = '{"class": "aadhaar"}'::jsonb WHERE field_key = 'aadhaar_number';
+UPDATE public.form_fields SET validation_regex = '^[1-9]\d{5}$', validation = '{"class": "pincode"}'::jsonb WHERE field_key = 'pincode';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,1000}$', validation = '{"min_length": 2, "max_length": 1000, "class": "address"}'::jsonb WHERE field_key = 'residential_address';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,1000}$', validation = '{"min_length": 2, "max_length": 1000, "class": "address"}'::jsonb WHERE field_key = 'full_address';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'flat_house_street';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'house_flat';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'building_society';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'street_road';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'village_name';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'village_city';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'district';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\u0A80-\u0AFF\u0900-\u097F\s\.,\-\/]{2,200}$', validation = '{"min_length": 2, "max_length": 200, "class": "address"}'::jsonb WHERE field_key = 'taluka';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'annual_income';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money", "max_ews": 800000}'::jsonb WHERE field_key = 'family_gross_income';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'income_salary';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'income_business';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'income_agriculture';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'income_other';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 100000000, "is_decimal": true, "class": "money"}'::jsonb WHERE field_key = 'avg_income_3years';
+UPDATE public.form_fields SET validation_regex = '^\d+$', validation = '{"min": 1, "max": 30, "is_integer": true}'::jsonb WHERE field_key = 'earning_members_count';
+UPDATE public.form_fields SET validation_regex = '^\d+$', validation = '{"min": 1, "max": 30, "is_integer": true}'::jsonb WHERE field_key = 'family_member_count';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 999999, "is_decimal": true}'::jsonb WHERE field_key = 'agricultural_land_acres';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 999999, "is_decimal": true}'::jsonb WHERE field_key = 'residential_flat_sqft';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 999999, "is_decimal": true}'::jsonb WHERE field_key = 'residential_plot_sqyards';
+UPDATE public.form_fields SET validation_regex = '^\d+(\.\d{1,2})?$', validation = '{"min": 0, "max": 999999, "is_decimal": true}'::jsonb WHERE field_key = 'residential_plot_sqft';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "dob", "max_date": "today", "min_year": 1900}'::jsonb WHERE field_key = 'dob';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\+\-\/\s]{3,30}$', validation = '{"min_length": 3, "max_length": 30, "class": "id_number"}'::jsonb WHERE field_key = 'survey_number';
+UPDATE public.form_fields SET validation_regex = '^[a-zA-Z0-9\+\-\/\s]{3,30}$', validation = '{"min_length": 3, "max_length": 30, "class": "id_number"}'::jsonb WHERE field_key = 'khata_number';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'gender';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'occupation';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'income_purpose';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'category';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'exam_city_1';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'question_paper_medium';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'licence_type';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'vehicle_class';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'rto_office';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'blood_group';
+UPDATE public.form_fields SET validation_regex = NULL, validation = '{"class": "enum"}'::jsonb WHERE field_key = 'qualification';
+
+
+-- -----------------------------------------------------------------------------
+-- Seed Operator Form Assignments
+-- -----------------------------------------------------------------------------
+INSERT INTO public.operator_form_assignments (id, operator_id, form_id, is_active, assigned_by)
+VALUES 
+    ('6849e60e-0984-4fec-8461-88c918099487', 'b0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('65ac6ba5-71a4-4742-b2db-5e8bd823e510', 'b0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('e1e3094c-d78a-4910-9237-ca079f0a025f', 'b0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000004', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('e2b504b8-338b-4a79-868f-6332c99cb2b5', 'b0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000003', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('dda5f2ef-12fe-4d59-9721-6c0bdc9e8dc7', 'b0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000006', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('4b168356-8621-49dc-bac4-f577b9b8d380', 'b0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('06f37b21-ffae-44f9-8e72-358624771862', 'b0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000004', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('f8746317-486d-46b0-abbe-470fe0e7689a', 'b0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000001', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('c32bde91-4e50-44f3-9e63-26313e6ab552', 'b0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000002', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('794168b4-398d-4ab9-a4a6-8ce669387f5e', 'b0000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000003', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('f0bc3fcd-5ca0-44e5-ac4b-78bca55e8087', 'b0000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000005', TRUE, 'a0000000-0000-0000-0000-000000000001'),
+    ('255f2fd6-f21f-45ce-9ac5-c8459378939c', 'b0000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000006', TRUE, 'a0000000-0000-0000-0000-000000000001')
+ON CONFLICT (operator_id, form_id) DO NOTHING;

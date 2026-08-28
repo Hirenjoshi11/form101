@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { ApiService } from '@/lib/api';
-import { CertificateForm, Operator } from '@/lib/types';
+import {
+  CertificateForm,
+  Operator,
+  BillingSummary,
+  DailyRevenueRecord,
+  MonthlyRevenueRecord,
+  ServiceRevenueBreakdown,
+  PlatformProfitRecord,
+  GovtRemittanceRecord,
+  BillingTransaction
+} from '@/lib/types';
 import {
   TrendingUp,
   CreditCard,
@@ -31,7 +41,14 @@ import {
   ExternalLink,
   AlertCircle,
   Hash,
-  FileText
+  FileText,
+  Landmark,
+  Wallet,
+  Sparkles,
+  Layers,
+  ArrowUpDown,
+  Coins,
+  Percent
 } from 'lucide-react';
 
 interface AdminBillingDashboardProps {
@@ -39,13 +56,16 @@ interface AdminBillingDashboardProps {
   operatorsList?: Operator[];
 }
 
+export type FinancialTableTab = 'overall' | 'profit' | 'govt' | 'all';
+export type ChartMetricMode = 'all_three' | 'gross' | 'portal' | 'govt';
+
 export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
   formsList = [],
   operatorsList = []
 }) => {
   const { language } = useLanguage();
 
-  // Primary Date Preset Filter
+  // ─── 1. DATE PRESET & FILTER STATES ───
   const [datePreset, setDatePreset] = useState<string>('this_month');
   const [customFrom, setCustomFrom] = useState<string>('2026-08-01');
   const [customTo, setCustomTo] = useState<string>('2026-08-23');
@@ -58,40 +78,41 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // View Mode: Daily vs Monthly Chart
-  const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
-  const [selectedDayDetail, setSelectedDayDetail] = useState<any | null>(null);
+  // ─── 2. ACTIVE VIEW MODES ───
+  // Active Table Selection: 'overall' | 'profit' | 'govt' | 'all'
+  const [activeTableTab, setActiveTableTab] = useState<FinancialTableTab>('overall');
+
+  // Chart View Mode: Daily vs Monthly
+  const [chartViewMode, setChartViewMode] = useState<'daily' | 'monthly'>('daily');
+  // Chart Metric Filter Mode: 'all_three' | 'gross' | 'portal' | 'govt'
+  const [chartMetricMode, setChartMetricMode] = useState<ChartMetricMode>('all_three');
+  // Selected Data Point for Interactive Banner
+  const [selectedPointDetail, setSelectedPointDetail] = useState<any | null>(null);
 
   // Selected Transaction for Invoice Modal
-  const [selectedInvoiceTxn, setSelectedInvoiceTxn] = useState<any | null>(null);
+  const [selectedInvoiceTxn, setSelectedInvoiceTxn] = useState<BillingTransaction | null>(null);
 
-  // Data States from Real Database API
-  const [summary, setSummary] = useState<any | null>(null);
-  const [monthlySeries, setMonthlySeries] = useState<any[]>([]);
-  const [dailySeries, setDailySeries] = useState<any[]>([]);
-  const [serviceBreakdown, setServiceBreakdown] = useState<any[]>([]);
+  // ─── 3. DATA STATES FROM DATABASE API ───
+  const [summary, setSummary] = useState<BillingSummary | null>(null);
+  const [monthlySeries, setMonthlySeries] = useState<MonthlyRevenueRecord[]>([]);
+  const [dailySeries, setDailySeries] = useState<DailyRevenueRecord[]>([]);
+  const [serviceBreakdown, setServiceBreakdown] = useState<ServiceRevenueBreakdown[]>([]);
+  const [platformProfitData, setPlatformProfitData] = useState<PlatformProfitRecord[]>([]);
+  const [govtRemittanceData, setGovtRemittanceData] = useState<GovtRemittanceRecord[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any | null>(null);
   const [transactionsData, setTransactionsData] = useState<{
     total_count: number;
     page: number;
     limit: number;
     total_pages: number;
-    transactions: any[];
+    transactions: BillingTransaction[];
   }>({ total_count: 0, page: 1, limit: 15, total_pages: 1, transactions: [] });
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Compute actual date range strings from preset
+  // ─── 4. DATE RANGE CALCULATION ───
   const { fromDate, toDate } = useMemo(() => {
-    const today = new Date(2026, 7, 23); // August 23, 2026 as base reference
-    const formatDate = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
     switch (datePreset) {
       case 'today':
         return { fromDate: '2026-08-23', toDate: '2026-08-23' };
@@ -116,7 +137,7 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
     }
   }, [datePreset, customFrom, customTo]);
 
-  // Load all analytics data from real database backend
+  // ─── 5. DATA LOADER ───
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -133,11 +154,22 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
         limit: 15
       };
 
-      const [summaryRes, monthlyRes, dailyRes, serviceRes, methodsRes, txnsRes] = await Promise.all([
+      const [
+        summaryRes,
+        monthlyRes,
+        dailyRes,
+        serviceRes,
+        profitRes,
+        govtRes,
+        methodsRes,
+        txnsRes
+      ] = await Promise.all([
         ApiService.getBillingSummary(queryParams),
         ApiService.getMonthlyRevenue({ year: 2026, service_id: selectedService }),
         ApiService.getDailyRevenue({ from_date: fromDate, to_date: toDate, service_id: selectedService }),
         ApiService.getRevenueByService({ from_date: fromDate, to_date: toDate }),
+        ApiService.getPlatformProfitSummary({ from_date: fromDate, to_date: toDate }),
+        ApiService.getGovtRemittances({ from_date: fromDate, to_date: toDate }),
         ApiService.getPaymentMethodsSplit({ from_date: fromDate, to_date: toDate }),
         ApiService.getBillingTransactions(queryParams)
       ]);
@@ -146,17 +178,18 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
       setMonthlySeries(monthlyRes || []);
       setDailySeries(dailyRes || []);
       setServiceBreakdown(serviceRes || []);
+      setPlatformProfitData(profitRes || []);
+      setGovtRemittanceData(govtRes || []);
       setPaymentMethods(methodsRes);
       setTransactionsData(txnsRes || { total_count: 0, page: 1, limit: 15, total_pages: 1, transactions: [] });
     } catch (err: any) {
-      console.error('Error fetching billing data:', err);
+      console.error('Error fetching billing analytics:', err);
       setError('Unable to load revenue data from database. Please check backend connection.');
     } finally {
       setLoading(false);
     }
   }, [fromDate, toDate, selectedService, selectedPaymentStatus, selectedOperator, selectedPaymentMethod, searchQuery, currentPage]);
 
-  // Re-fetch on any filter modification
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
@@ -168,8 +201,9 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
     return () => window.removeEventListener('formseva_data_updated', handleSync);
   }, [loadDashboardData]);
 
-  // Handle Export CSV of Current Filtered Records
-  const handleExportCSV = () => {
+  // ─── 6. EXPORT HELPERS ───
+  // Export Table 1 (Overall Revenue)
+  const handleExportOverallRevenueCSV = () => {
     if (!transactionsData.transactions || transactionsData.transactions.length === 0) return;
     const headers = ['Invoice No', 'Application No', 'Date', 'Citizen Name', 'Phone', 'District', 'Service', 'Govt Fee (INR)', 'Portal Fee (INR)', 'Total Paid (INR)', 'Payment Mode', 'Operator', 'Status'];
     const rows = transactionsData.transactions.map(t => [
@@ -184,32 +218,79 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
       t.portal_fee,
       t.total_fee,
       t.payment_method.toUpperCase(),
-      t.operator_name,
+      t.operator_name || 'N/A',
       t.status.toUpperCase()
     ]);
+    downloadCSV(headers, rows, `Overall_Revenue_Report_${fromDate}_to_${toDate}.csv`);
+  };
+
+  // Export Table 2 (Platform Profit)
+  const handleExportProfitCSV = () => {
+    if (platformProfitData.length === 0) return;
+    const headers = ['Service Scheme', 'Department', 'Applications Count', 'Unit Service Fee (INR)', 'Gross Platform Revenue (INR)', 'Operator Processing Expense (INR)', 'Net Platform Profit (INR)', 'Profit Margin (%)', 'Share of Total Profit (%)'];
+    const rows = platformProfitData.map(p => [
+      `"${p.service_title_en}"`,
+      `"${p.department_name_en}"`,
+      p.applications_count,
+      p.unit_service_fee,
+      p.gross_platform_revenue,
+      p.operator_payout_expense,
+      p.net_platform_profit,
+      `${p.profit_margin_percentage}%`,
+      `${p.profit_share_percentage}%`
+    ]);
+    downloadCSV(headers, rows, `Platform_Profit_Margin_Report_${fromDate}_to_${toDate}.csv`);
+  };
+
+  // Export Table 3 (Government Remittances)
+  const handleExportGovtRemittancesCSV = () => {
+    if (govtRemittanceData.length === 0) return;
+    const headers = ['Department Name', 'Official Portal', 'Service Scheme', 'Unit Govt Fee (INR)', 'Applications Remitted', 'Total Amount Remitted (INR)', 'Treasury Head Code', 'Settlement Gateway', 'Status', 'Settlement Date'];
+    const rows = govtRemittanceData.map(g => [
+      `"${g.department_name_en}"`,
+      `"${g.portal_name}"`,
+      `"${g.service_title_en}"`,
+      g.unit_govt_fee,
+      g.applications_remitted,
+      g.total_remitted_inr,
+      `"${g.treasury_head_code}"`,
+      `"${g.settlement_gateway}"`,
+      g.remittance_status.toUpperCase(),
+      g.last_settlement_date
+    ]);
+    downloadCSV(headers, rows, `Govt_Side_Remittance_Report_${fromDate}_to_${toDate}.csv`);
+  };
+
+  const downloadCSV = (headers: string[], rows: (string | number)[][], filename: string) => {
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `FormSeva_Billing_Report_${fromDate}_to_${toDate}.csv`);
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Currency formatter for Y-axis ticks
+  // ─── 7. CHART CALCULATIONS & CEILINGS ───
   const formatYAxisTick = (val: number) => {
     if (val >= 100000) return `₹${(val / 100000).toFixed(val % 100000 === 0 ? 0 : 1)}L`;
     if (val >= 1000) return `₹${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
     return `₹${Math.round(val)}`;
   };
 
-  // Max value and grid ticks for Daily Chart
-  const { yTicksDaily, maxDayGrossCeiling } = useMemo(() => {
+  // Daily Chart Max Value & Ticks
+  const { yTicksDaily, maxDayCeiling } = useMemo(() => {
     if (!dailySeries || dailySeries.length === 0) {
-      return { yTicksDaily: [10000, 7500, 5000, 2500, 0], maxDayGrossCeiling: 10000 };
+      return { yTicksDaily: [10000, 7500, 5000, 2500, 0], maxDayCeiling: 10000 };
     }
-    const maxVal = Math.max(...dailySeries.map(d => d.gross), 1000);
+    const maxVal = Math.max(...dailySeries.map(d => {
+      if (chartMetricMode === 'gross') return d.gross;
+      if (chartMetricMode === 'portal') return d.portal;
+      if (chartMetricMode === 'govt') return d.govt;
+      return d.gross; // all_three
+    }), 1000);
+
     const pow = Math.pow(10, Math.floor(Math.log10(maxVal)));
     const ratio = maxVal / pow;
     let multiplier = 1;
@@ -222,16 +303,22 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
     const ceiling = Math.ceil(multiplier * pow);
     return {
       yTicksDaily: [ceiling, ceiling * 0.75, ceiling * 0.5, ceiling * 0.25, 0],
-      maxDayGrossCeiling: ceiling
+      maxDayCeiling: ceiling
     };
-  }, [dailySeries]);
+  }, [dailySeries, chartMetricMode]);
 
-  // Max value and grid ticks for Monthly Chart
-  const { yTicksMonthly, maxMonthGrossCeiling } = useMemo(() => {
+  // Monthly Chart Max Value & Ticks
+  const { yTicksMonthly, maxMonthCeiling } = useMemo(() => {
     if (!monthlySeries || monthlySeries.length === 0) {
-      return { yTicksMonthly: [50000, 37500, 25000, 12500, 0], maxMonthGrossCeiling: 50000 };
+      return { yTicksMonthly: [50000, 37500, 25000, 12500, 0], maxMonthCeiling: 50000 };
     }
-    const maxVal = Math.max(...monthlySeries.map(m => m.gross), 1000);
+    const maxVal = Math.max(...monthlySeries.map(m => {
+      if (chartMetricMode === 'gross') return m.gross;
+      if (chartMetricMode === 'portal') return m.portal;
+      if (chartMetricMode === 'govt') return m.govt;
+      return m.gross;
+    }), 1000);
+
     const pow = Math.pow(10, Math.floor(Math.log10(maxVal)));
     const ratio = maxVal / pow;
     let multiplier = 1;
@@ -244,43 +331,71 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
     const ceiling = Math.ceil(multiplier * pow);
     return {
       yTicksMonthly: [ceiling, ceiling * 0.75, ceiling * 0.5, ceiling * 0.25, 0],
-      maxMonthGrossCeiling: ceiling
+      maxMonthCeiling: ceiling
     };
-  }, [monthlySeries]);
+  }, [monthlySeries, chartMetricMode]);
+
+  // Total Totals for Tables Summary
+  const profitTotals = useMemo(() => {
+    const totalRevenue = platformProfitData.reduce((acc, p) => acc + p.gross_platform_revenue, 0);
+    const totalExpenses = platformProfitData.reduce((acc, p) => acc + p.operator_payout_expense, 0);
+    const totalProfit = platformProfitData.reduce((acc, p) => acc + p.net_platform_profit, 0);
+    const totalApps = platformProfitData.reduce((acc, p) => acc + p.applications_count, 0);
+    const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    return { totalRevenue, totalExpenses, totalProfit, totalApps, avgMargin };
+  }, [platformProfitData]);
+
+  const govtTotals = useMemo(() => {
+    const totalRemitted = govtRemittanceData.reduce((acc, g) => acc + g.total_remitted_inr, 0);
+    const totalApps = govtRemittanceData.reduce((acc, g) => acc + g.applications_remitted, 0);
+    return { totalRemitted, totalApps, deptsCount: govtRemittanceData.length };
+  }, [govtRemittanceData]);
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-12">
+    <div className="space-y-7 animate-fadeIn pb-16">
 
-      {/* ─── 1. HEADER & GLOBAL CONTROLS ─── */}
+      {/* ─── 1. TOP HEADER & GLOBAL CONTROLS ─── */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="p-3 rounded-2xl bg-emerald-50 text-[#159447] border border-emerald-200/80 shadow-2xs">
-                <Receipt className="w-6 h-6" />
+              <span className="p-3 rounded-2xl bg-[#159447]/10 text-[#159447] border border-[#159447]/20 shadow-2xs">
+                <Landmark className="w-6 h-6" />
               </span>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-[#18232D]">
-                  {language === 'gu' ? 'બિલિંગ, આવક અને પેમેન્ટ એનાલિટિક્સ' : 'Billing & Revenue Analytics'}
+                  {language === 'gu'
+                    ? 'નાણાકીય વિશ્લેષણ અને આવક નિયંત્રણ'
+                    : 'Financial Revenue & Remittance Control Room'}
                 </h1>
                 <p className="text-xs sm:text-sm text-[#5B6470] mt-0.5">
                   {language === 'gu'
-                    ? 'સરકારી તિજોરી ફી, પોર્ટલ સર્વિસ ચાર્જ અને દૈનિક ટ્રાન્ઝેક્શન ટ્રેકર'
-                    : 'Monitor payments, revenue streams, and real-time transaction performance.'}
+                    ? '૩ પત્રકો: કુલ એકંદર આવક, અમારો નફો અને સરકારી તિજોરી ચુકવણી | દૈનિક અને માસિક બાર ચાર્ટ'
+                    : '3 Dedicated Tables: Overall Revenue, Our Profit Margin & Govt Side Payouts | Daily & Monthly Bar Chart'}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Top Action Buttons */}
+          {/* Top Quick Actions */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={handleExportCSV}
-              disabled={loading || transactionsData.transactions.length === 0}
+              onClick={() => {
+                if (activeTableTab === 'profit') handleExportProfitCSV();
+                else if (activeTableTab === 'govt') handleExportGovtRemittancesCSV();
+                else handleExportOverallRevenueCSV();
+              }}
+              disabled={loading}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#18232D] hover:bg-slate-50 transition shadow-2xs disabled:opacity-50"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Export CSV</span>
+              <span>
+                {activeTableTab === 'profit'
+                  ? 'Export Profit CSV'
+                  : activeTableTab === 'govt'
+                  ? 'Export Govt CSV'
+                  : 'Export Revenue CSV'}
+              </span>
             </button>
 
             <button
@@ -288,20 +403,20 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#18232D] hover:bg-slate-50 transition shadow-2xs"
             >
               <Printer className="w-4 h-4 text-blue-600" />
-              <span>Print Summary</span>
+              <span>Print Audit Sheet</span>
             </button>
 
             <button
               onClick={loadDashboardData}
               className="p-2 rounded-xl border border-slate-200 text-[#5B6470] hover:text-[#159447] hover:bg-emerald-50 transition"
-              title="Reload from Database"
+              title="Reload from Live Database"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#159447]' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* ─── 2. DATE PRESETS & MULTI-DIMENSIONAL FILTERS ─── */}
+        {/* Date Presets & Multi-Dimensional Filters */}
         <div className="mt-5 pt-5 border-t border-slate-100 space-y-4">
           
           {/* Preset Buttons Bar */}
@@ -314,7 +429,7 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
               { id: 'last_month', label: 'Last Month' },
               { id: '7d', label: 'Last 7 Days' },
               { id: '30d', label: 'Last 30 Days' },
-              { id: 'this_year', label: 'This Year (2026)' },
+              { id: 'this_year', label: 'Year 2026' },
               { id: 'custom', label: 'Custom Range' },
             ].map(p => (
               <button
@@ -334,10 +449,10 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
             ))}
           </div>
 
-          {/* Filter Dropdowns Grid */}
+          {/* Filter Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
             
-            {/* Custom Range Picker (if custom selected) */}
+            {/* Custom Range Picker */}
             {datePreset === 'custom' ? (
               <div className="col-span-1 sm:col-span-2 grid grid-cols-2 gap-2 bg-emerald-50/70 p-2 rounded-xl border border-emerald-200">
                 <div>
@@ -368,7 +483,7 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
             ) : (
               <div>
                 <label className="block text-[11px] font-bold text-[#5B6470] uppercase tracking-wider mb-1">
-                  Active Date Range
+                  Active Range
                 </label>
                 <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#18232D] flex items-center justify-between">
                   <span>{fromDate} → {toDate}</span>
@@ -380,7 +495,7 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
             {/* Service Filter */}
             <div>
               <label className="block text-[11px] font-bold text-[#5B6470] uppercase tracking-wider mb-1">
-                Service / Form
+                Gujarat Scheme
               </label>
               <select
                 value={selectedService}
@@ -390,13 +505,13 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
                 }}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#18232D] focus:outline-none focus:ring-2 focus:ring-[#159447]/30"
               >
-                <option value="all">All Services (6 Types)</option>
+                <option value="all">All Services (6 Schemes)</option>
                 <option value="income_certificate">Income Certificate (આવક)</option>
                 <option value="ews_certificate">EWS Certificate (10%)</option>
                 <option value="caste_ncl_certificate">NCL / SEBC Certificate</option>
                 <option value="land_records_7_12">7/12 Land Records (AnyRoR)</option>
                 <option value="driving_licence_rto">Driving Licence (RTO)</option>
-                <option value="neet_exam">NEET UG Medical Exam 2026</option>
+                <option value="neet_exam">NEET UG Exam 2026</option>
               </select>
             </div>
 
@@ -415,13 +530,13 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
               >
                 <option value="all">All Statuses</option>
                 <option value="succeeded">Successful (Paid)</option>
-                <option value="pending">Pending</option>
+                <option value="pending">Pending Confirmation</option>
                 <option value="failed">Failed</option>
                 <option value="refunded">Refunded</option>
               </select>
             </div>
 
-            {/* Specialist Operator Filter */}
+            {/* Specialist Operator */}
             <div>
               <label className="block text-[11px] font-bold text-[#5B6470] uppercase tracking-wider mb-1">
                 Specialist Operator
@@ -442,15 +557,15 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
               </select>
             </div>
 
-            {/* Live Search */}
+            {/* Search Filter */}
             <div>
               <label className="block text-[11px] font-bold text-[#5B6470] uppercase tracking-wider mb-1">
-                Search Transactions
+                Search Records
               </label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="ID, App #, Citizen, Phone..."
+                  placeholder="Citizen, App #, Inv #..."
                   value={searchQuery}
                   onChange={e => {
                     setSearchQuery(e.target.value);
@@ -493,877 +608,1072 @@ export const AdminBillingDashboard: React.FC<AdminBillingDashboardProps> = ({
         </div>
       )}
 
-      {/* ─── 3. PRIMARY FINANCIAL KPI CARDS (FROM DATABASE) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Card 1: Total Gross Revenue */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative overflow-hidden">
+      {/* ─── 2. PRIMARY 3 FINANCIAL KPI CARDS ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        {/* KPI Card 1: Overall Gross Revenue */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs relative overflow-hidden group hover:border-blue-400 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#5B6470] uppercase tracking-wider">
-              {language === 'gu' ? 'કુલ ગ્રોસ આવક' : 'Total Revenue'}
-            </span>
-            <span className="p-2 rounded-xl bg-emerald-50 text-[#159447]">
-              <DollarSign className="w-4 h-4" />
+            <div>
+              <span className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider bg-blue-50 px-2.5 py-1 rounded-lg">
+                1. Overall Gross Inflow
+              </span>
+              <h3 className="text-sm font-bold text-[#18232D] mt-2">
+                {language === 'gu' ? 'કુલ એકંદર આવક (Total Revenue)' : 'Overall Gross Revenue'}
+              </h3>
+            </div>
+            <span className="p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+              <DollarSign className="w-6 h-6" />
             </span>
           </div>
-          <div className="mt-3">
+
+          <div className="mt-4">
             {loading ? (
-              <div className="h-8 w-28 bg-slate-200 animate-pulse rounded-md" />
+              <div className="h-9 w-36 bg-slate-200 animate-pulse rounded-md" />
             ) : (
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-[#18232D]">
+                <span className="text-3xl sm:text-4xl font-black text-[#18232D] tracking-tight">
                   ₹{(summary?.gross_revenue || 0).toLocaleString('en-IN')}
                 </span>
               </div>
             )}
           </div>
-          <p className="text-xs text-[#5B6470] mt-1">
-            {loading ? '...' : `${summary?.successful_count || 0} successful payments`}
-          </p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
+
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#5B6470]">
+            <span>{summary?.successful_count || 0} Successful Txns</span>
+            <span className="font-bold text-blue-700">
+              Avg ₹{summary?.avg_order_value || 0} / Order
+            </span>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
         </div>
 
-        {/* Card 2: Successful Payments */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative overflow-hidden">
+        {/* KPI Card 2: Profit for Our Side Revenue */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs relative overflow-hidden group hover:border-emerald-400 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#5B6470] uppercase tracking-wider">
-              Successful Payments
-            </span>
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-3">
-            {loading ? (
-              <div className="h-8 w-20 bg-slate-200 animate-pulse rounded-md" />
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-blue-900">
-                  {(summary?.successful_count || 0).toLocaleString('en-IN')}
-                </span>
-                <span className="text-xs font-bold text-emerald-600">
-                  {summary?.success_rate || 100}% Rate
-                </span>
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-[#5B6470] mt-1">
-            Portal Fee: ₹{(summary?.portal_earnings || 0).toLocaleString('en-IN')}
-          </p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
-        </div>
-
-        {/* Card 3: Pending Payments */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#5B6470] uppercase tracking-wider">
-              Pending Payments
-            </span>
-            <span className="p-2 rounded-xl bg-amber-50 text-amber-600">
-              <Clock className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-3">
-            {loading ? (
-              <div className="h-8 w-16 bg-slate-200 animate-pulse rounded-md" />
-            ) : (
-              <span className="text-2xl sm:text-3xl font-black text-amber-900">
-                {(summary?.pending_count || 0).toLocaleString('en-IN')}
+            <div>
+              <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-2.5 py-1 rounded-lg">
+                2. Our Side Margin
               </span>
-            )}
+              <h3 className="text-sm font-bold text-[#18232D] mt-2">
+                {language === 'gu' ? 'અમારી બાજુનો નફો (Our Profit)' : 'Our Side Platform Profit'}
+              </h3>
+            </div>
+            <span className="p-3 rounded-2xl bg-emerald-50 text-[#159447] border border-emerald-100">
+              <TrendingUp className="w-6 h-6" />
+            </span>
           </div>
-          <p className="text-xs text-[#5B6470] mt-1">
-            Awaiting citizen bank confirmation
-          </p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
-        </div>
 
-        {/* Card 4: Failed / Refunded */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#5B6470] uppercase tracking-wider">
-              Failed / Refunded
-            </span>
-            <span className="p-2 rounded-xl bg-rose-50 text-rose-600">
-              <AlertCircle className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-3">
+          <div className="mt-4">
             {loading ? (
-              <div className="h-8 w-16 bg-slate-200 animate-pulse rounded-md" />
+              <div className="h-9 w-36 bg-slate-200 animate-pulse rounded-md" />
             ) : (
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-rose-900">
-                  {((summary?.failed_count || 0) + (summary?.refunded_count || 0)).toLocaleString('en-IN')}
+                <span className="text-3xl sm:text-4xl font-black text-emerald-700 tracking-tight">
+                  ₹{(summary?.portal_earnings || 0).toLocaleString('en-IN')}
                 </span>
-                <span className="text-xs font-bold text-slate-500">
-                  ({summary?.refunded_count || 0} ref.)
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  ~76.8% Margin
                 </span>
               </div>
             )}
           </div>
-          <p className="text-xs text-[#5B6470] mt-1">
-            Processed within SLA guidelines
-          </p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-500" />
-        </div>
 
-        {/* Card 5: Total Transactions & AOV */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#5B6470] uppercase tracking-wider">
-              Total Transactions
-            </span>
-            <span className="p-2 rounded-xl bg-purple-50 text-purple-600">
-              <CreditCard className="w-4 h-4" />
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#5B6470]">
+            <span>Net Platform Commission</span>
+            <span className="font-bold text-emerald-700">
+              ₹{(profitTotals.totalProfit || 0).toLocaleString('en-IN')} Net Retained
             </span>
           </div>
-          <div className="mt-3">
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+        </div>
+
+        {/* KPI Card 3: Amount Paid in Government Side */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs relative overflow-hidden group hover:border-amber-400 transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-50 px-2.5 py-1 rounded-lg">
+                3. Govt Remittance
+              </span>
+              <h3 className="text-sm font-bold text-[#18232D] mt-2">
+                {language === 'gu' ? 'સરકારી તિજોરી ચુકવણી (Govt Paid)' : 'Amount Paid in Govt Side'}
+              </h3>
+            </div>
+            <span className="p-3 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100">
+              <Landmark className="w-6 h-6" />
+            </span>
+          </div>
+
+          <div className="mt-4">
             {loading ? (
-              <div className="h-8 w-20 bg-slate-200 animate-pulse rounded-md" />
+              <div className="h-9 w-36 bg-slate-200 animate-pulse rounded-md" />
             ) : (
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-purple-900">
-                  {(summary?.total_transactions || 0).toLocaleString('en-IN')}
+                <span className="text-3xl sm:text-4xl font-black text-amber-900 tracking-tight">
+                  ₹{(summary?.govt_remittance || 0).toLocaleString('en-IN')}
+                </span>
+                <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                  100% Remitted
                 </span>
               </div>
             )}
           </div>
-          <p className="text-xs text-[#5B6470] mt-1">
-            Avg Order: <strong>₹{summary?.avg_order_value || 0}</strong>
-          </p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
+
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#5B6470]">
+            <span>Cyber Treasury Gujarat (SBI e-Pay)</span>
+            <span className="font-bold text-amber-800">
+              {govtTotals.deptsCount} Depts Settled
+            </span>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
         </div>
+
       </div>
 
-      {/* ─── 4. REVENUE CHARTS SECTION ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        {/* Left: Dynamic Line / Bar Chart (8 Cols) */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+      {/* ─── 3. INTERACTIVE BAR CHART (DAILY & MONTHLY DATA) ─── */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-6">
+        
+        {/* Chart Header & Controls */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-[#18232D] flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-[#159447]" />
-                  <span>
-                    {viewMode === 'daily'
-                      ? (language === 'gu' ? 'દૈનિક આવક પ્રવાહ (Daily Revenue)' : `Daily Revenue Trend (${fromDate} to ${toDate})`)
-                      : (language === 'gu' ? '૨૦૨૬: માસિક આવક પ્રવાહ (Monthly Revenue)' : 'Monthly Revenue (2026 Database Aggregate)')}
-                  </span>
-                </h2>
-                <p className="text-xs text-[#5B6470] mt-0.5">
-                  Calculated dynamically from real database payment entries
-                </p>
-              </div>
-
-              {/* View Switcher & Legend */}
-              <div className="flex items-center gap-3">
-                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
-                  <button
-                    onClick={() => setViewMode('daily')}
-                    className={`px-3 py-1 rounded-lg font-bold transition ${
-                      viewMode === 'daily' ? 'bg-white text-[#18232D] shadow-xs' : 'text-[#5B6470]'
-                    }`}
-                  >
-                    Daily
-                  </button>
-                  <button
-                    onClick={() => setViewMode('monthly')}
-                    className={`px-3 py-1 rounded-lg font-bold transition ${
-                      viewMode === 'monthly' ? 'bg-white text-[#18232D] shadow-xs' : 'text-[#5B6470]'
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                </div>
-
-                <div className="hidden sm:flex items-center gap-2 text-xs font-bold">
-                  <span className="flex items-center gap-1 text-emerald-700">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#159447]" /> Portal Fee
-                  </span>
-                  <span className="flex items-center gap-1 text-amber-700">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Govt Fee
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-[#159447]" />
+              <h2 className="text-lg sm:text-xl font-black text-[#18232D]">
+                {chartViewMode === 'daily'
+                  ? (language === 'gu' ? 'દૈનિક આવક બાર ચાર્ટ (Daily Revenue Bar Chart)' : `Daily Revenue & Profit Bar Chart (${fromDate} to ${toDate})`)
+                  : (language === 'gu' ? '૨૦૨૬ માસિક આવક બાર ચાર્ટ (Monthly Revenue Bar Chart)' : 'Monthly Revenue & Profit Bar Chart (Year 2026 Database Series)')}
+              </h2>
             </div>
-
-            {/* Chart Area */}
-            {loading ? (
-              <div className="h-72 sm:h-80 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2 text-slate-400">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#159447]" />
-                  <span className="text-xs font-bold">Loading revenue series from database...</span>
-                </div>
-              </div>
-            ) : viewMode === 'daily' ? (
-              /* Daily Interactive Chart with True Y-Axis and Aligned Columns */
-              dailySeries.length === 0 ? (
-                <div className="h-72 flex items-center justify-center text-slate-400 text-xs font-bold">
-                  No payment records found in database for selected date range.
-                </div>
-              ) : (
-                <div className="mt-5">
-                  <div className="flex">
-                    {/* Y-Axis Label Column (Left) */}
-                    <div className="flex flex-col justify-between h-64 sm:h-72 pr-2.5 sm:pr-3 text-[10px] font-bold text-slate-400 select-none text-right shrink-0 w-11 sm:w-14">
-                      {yTicksDaily.map((tick, i) => (
-                        <span key={i} className="leading-none">
-                          {formatYAxisTick(tick)}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Main Plot Area */}
-                    <div className="relative flex-1 h-64 sm:h-72">
-                      {/* Background Horizontal Guide Lines */}
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                        {yTicksDaily.map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-full border-b ${
-                              i === yTicksDaily.length - 1
-                                ? 'border-slate-300'
-                                : 'border-dashed border-slate-100'
-                            }`}
-                          />
-                        ))}
-                      </div>
-
-                      {/* Interactive Stacked Bars */}
-                      <div className="absolute inset-0 flex items-end justify-between gap-1 sm:gap-1.5 px-1">
-                        {dailySeries.map((d) => {
-                          const heightPercent = maxDayGrossCeiling > 0
-                            ? Math.min(100, Math.max(0, (d.gross / maxDayGrossCeiling) * 100))
-                            : 0;
-                          const isSelected = selectedDayDetail?.date === d.date;
-                          const portalRatio = d.gross > 0 ? (d.portal / d.gross) : 0;
-                          const govtRatio = d.gross > 0 ? (d.govt / d.gross) : 0;
-
-                          return (
-                            <div
-                              key={d.date}
-                              onClick={() => setSelectedDayDetail(d)}
-                              className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                            >
-                              {/* Floating Tooltip */}
-                              <div className="absolute -top-16 z-30 hidden group-hover:flex flex-col items-center bg-slate-900/95 backdrop-blur-xs text-white text-[10px] font-semibold py-1.5 px-2.5 rounded-xl shadow-xl pointer-events-none whitespace-nowrap border border-slate-700/60">
-                                <div className="flex items-center gap-1.5 font-bold text-xs text-white">
-                                  <span>{d.date}</span>
-                                  <span className="text-slate-400 font-normal">({d.weekday})</span>
-                                </div>
-                                <div className="text-emerald-400 font-extrabold text-xs mt-0.5">
-                                  ₹{d.gross.toLocaleString('en-IN')}
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5 text-[9px]">
-                                  <span className="text-emerald-300 font-medium">Portal: ₹{d.portal.toLocaleString('en-IN')}</span>
-                                  <span className="text-amber-300 font-medium">Govt: ₹{d.govt.toLocaleString('en-IN')}</span>
-                                  <span className="text-slate-300 font-medium">{d.successful_txns} txns</span>
-                                </div>
-                                <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-1" />
-                              </div>
-
-                              {/* Hover Highlight Column Overlay */}
-                              <div className="absolute inset-0 bg-emerald-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
-                              {/* Stacked Bar */}
-                              {heightPercent > 0 ? (
-                                <div
-                                  style={{ height: `${heightPercent}%` }}
-                                  className={`w-full max-w-[18px] sm:max-w-[24px] rounded-t-md transition-all duration-300 flex flex-col justify-end overflow-hidden shadow-2xs ${
-                                    isSelected
-                                      ? 'ring-2 ring-emerald-600 ring-offset-1 shadow-md brightness-105'
-                                      : 'group-hover:brightness-105 group-hover:scale-y-[1.02]'
-                                  }`}
-                                >
-                                  {/* Portal segment (top) */}
-                                  <div
-                                    style={{ height: `${portalRatio * 100}%` }}
-                                    className="bg-[#159447] w-full shrink-0"
-                                  />
-                                  {/* Govt segment (bottom) */}
-                                  <div
-                                    style={{ height: `${govtRatio * 100}%` }}
-                                    className="bg-amber-400 w-full shrink-0"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-full max-w-[18px] sm:max-w-[24px] h-1 bg-slate-200 rounded-full mb-0.5" />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* X-Axis Date Labels with Exact Column Alignment */}
-                  <div className="flex ml-11 sm:ml-14 mt-2.5 text-[9px] sm:text-[10px] font-bold text-slate-400">
-                    <div className="flex-1 flex items-center justify-between px-1">
-                      {dailySeries.map((d, idx) => {
-                        const step = Math.max(1, Math.round(dailySeries.length / 8));
-                        const isKeyDate = idx === 0 || idx === dailySeries.length - 1 || idx % step === 0;
-                        const isSelected = selectedDayDetail?.date === d.date;
-
-                        return (
-                          <div key={d.date} className="flex-1 text-center">
-                            {isKeyDate ? (
-                              <span className={`inline-block px-1 rounded ${
-                                isSelected ? 'text-emerald-700 font-black bg-emerald-50' : 'text-slate-500'
-                              }`}>
-                                {d.day}
-                              </span>
-                            ) : (
-                              <span className="opacity-0 select-none">·</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Period Footer */}
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mt-3 ml-11 sm:ml-14 px-1 pt-2.5 border-t border-slate-100">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{dailySeries[0]?.date}</span>
-                    </span>
-                    <span className="bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold text-[10px]">
-                      {dailySeries.length} Recorded Days in Period
-                    </span>
-                    <span className="font-semibold text-slate-700">
-                      {dailySeries[dailySeries.length - 1]?.date}
-                    </span>
-                  </div>
-                </div>
-              )
-            ) : (
-              /* Monthly Interactive Chart with True Y-Axis and Aligned Columns */
-              <div className="mt-5">
-                <div className="flex">
-                  {/* Y-Axis Label Column (Left) */}
-                  <div className="flex flex-col justify-between h-64 sm:h-72 pr-2.5 sm:pr-3 text-[10px] font-bold text-slate-400 select-none text-right shrink-0 w-11 sm:w-14">
-                    {yTicksMonthly.map((tick, i) => (
-                      <span key={i} className="leading-none">
-                        {formatYAxisTick(tick)}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Main Plot Area */}
-                  <div className="relative flex-1 h-64 sm:h-72">
-                    {/* Background Horizontal Guide Lines */}
-                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                      {yTicksMonthly.map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-full border-b ${
-                            i === yTicksMonthly.length - 1
-                              ? 'border-slate-300'
-                              : 'border-dashed border-slate-100'
-                          }`}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Interactive Stacked Bars */}
-                    <div className="absolute inset-0 flex items-end justify-between gap-2 sm:gap-3 px-2">
-                      {monthlySeries.map((m) => {
-                        const heightPercent = maxMonthGrossCeiling > 0
-                          ? Math.min(100, Math.max(0, (m.gross / maxMonthGrossCeiling) * 100))
-                          : 0;
-                        const portalRatio = m.gross > 0 ? (m.portal / m.gross) : 0;
-                        const govtRatio = m.gross > 0 ? (m.govt / m.gross) : 0;
-
-                        return (
-                          <div
-                            key={m.month}
-                            className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                          >
-                            {/* Floating Tooltip */}
-                            <div className="absolute -top-16 z-30 hidden group-hover:flex flex-col items-center bg-slate-900/95 backdrop-blur-xs text-white text-[10px] font-semibold py-1.5 px-2.5 rounded-xl shadow-xl pointer-events-none whitespace-nowrap border border-slate-700/60">
-                              <div className="font-bold text-xs text-white">{m.month}</div>
-                              <div className="text-emerald-400 font-extrabold text-xs mt-0.5">
-                                ₹{m.gross.toLocaleString('en-IN')}
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5 text-[9px]">
-                                <span className="text-emerald-300 font-medium">Portal: ₹{m.portal.toLocaleString('en-IN')}</span>
-                                <span className="text-amber-300 font-medium">Govt: ₹{m.govt.toLocaleString('en-IN')}</span>
-                                <span className="text-slate-300 font-medium">{m.txns} txns</span>
-                              </div>
-                              <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-1" />
-                            </div>
-
-                            {/* Hover Highlight Column Overlay */}
-                            <div className="absolute inset-0 bg-emerald-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
-                            {/* Stacked Bar */}
-                            {heightPercent > 0 ? (
-                              <div
-                                style={{ height: `${heightPercent}%` }}
-                                className="w-full max-w-[32px] sm:max-w-[44px] rounded-t-lg transition-all duration-300 flex flex-col justify-end overflow-hidden shadow-2xs group-hover:brightness-105 group-hover:scale-y-[1.02]"
-                              >
-                                <div
-                                  style={{ height: `${portalRatio * 100}%` }}
-                                  className="bg-[#159447] w-full shrink-0"
-                                />
-                                <div
-                                  style={{ height: `${govtRatio * 100}%` }}
-                                  className="bg-amber-400 w-full shrink-0"
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-full max-w-[32px] sm:max-w-[44px] h-1 bg-slate-200 rounded-full mb-0.5" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* X-Axis Month Labels */}
-                <div className="flex ml-11 sm:ml-14 mt-2.5 text-[10px] sm:text-xs font-bold text-slate-500">
-                  <div className="flex-1 flex items-center justify-between px-2">
-                    {monthlySeries.map((m) => (
-                      <div key={m.month} className="flex-1 text-center truncate">
-                        {m.monthShort}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Period Footer */}
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mt-3 ml-11 sm:ml-14 px-1 pt-2.5 border-t border-slate-100">
-                  <span className="font-semibold text-slate-700">Jan 2026</span>
-                  <span className="bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold text-[10px]">
-                    Annual 2026 Database Aggregate Series
-                  </span>
-                  <span className="font-semibold text-slate-700">Dec 2026</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Selected Day Info Banner */}
-          {selectedDayDetail && viewMode === 'daily' && (
-            <div className="mt-4 p-3.5 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-[#159447] text-white font-bold text-xs">
-                  {selectedDayDetail.day}
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-[#18232D]">
-                    {selectedDayDetail.date} ({selectedDayDetail.weekday})
-                  </h4>
-                  <p className="text-[11px] text-[#5B6470]">
-                    Total Collection: <strong className="text-[#18232D]">₹{selectedDayDetail.gross.toLocaleString('en-IN')}</strong> | Portal Margin: <strong className="text-emerald-700">₹{selectedDayDetail.portal.toLocaleString('en-IN')}</strong> | Govt: <strong className="text-amber-800">₹{selectedDayDetail.govt.toLocaleString('en-IN')}</strong>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedDayDetail(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Revenue by Service / Form (4 Cols) */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-black text-base text-[#18232D] flex items-center gap-2">
-                  <PieChartIcon className="w-4 h-4 text-blue-600" />
-                  <span>Revenue by Service</span>
-                </h3>
-                <p className="text-xs text-[#5B6470]">
-                  Ranking by gross fee collected
-                </p>
-              </div>
-            </div>
-
-            {/* List of services with progress bars */}
-            <div className="mt-4 space-y-3.5">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-10 bg-slate-100 animate-pulse rounded-xl" />
-                  ))}
-                </div>
-              ) : serviceBreakdown.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">No service revenue for this period</p>
-              ) : (
-                serviceBreakdown.map(s => (
-                  <div key={s.slug} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#18232D] truncate max-w-[180px]">
-                        {language === 'gu' && s.name_gu ? s.name_gu : s.name}
-                      </span>
-                      <span className="font-black text-slate-700">
-                        ₹{s.revenue.toLocaleString('en-IN')} ({s.percentage}%)
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        style={{ width: `${s.percentage}%`, backgroundColor: s.color }}
-                        className="h-full rounded-full transition-all duration-500"
-                      />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
-                      <span>{s.count} applications</span>
-                      <span>Portal Margin: ₹{s.portal_fee.toLocaleString('en-IN')}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Payment Method Distribution */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <h4 className="text-xs font-bold text-[#18232D] mb-2 flex items-center justify-between">
-              <span>Payment Channel Share</span>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Digital</span>
-            </h4>
-            <div className="grid grid-cols-4 gap-1 text-center">
-              <div className="bg-white p-2 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 block">UPI</span>
-                <span className="text-xs font-black text-[#18232D]">{paymentMethods?.upi?.percent || 74}%</span>
-              </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 block">Cards</span>
-                <span className="text-xs font-black text-[#18232D]">{paymentMethods?.card?.percent || 16}%</span>
-              </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 block">NetBank</span>
-                <span className="text-xs font-black text-[#18232D]">{paymentMethods?.netbanking?.percent || 7}%</span>
-              </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 block">QR</span>
-                <span className="text-xs font-black text-[#18232D]">{paymentMethods?.qr?.percent || 3}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── 5. DAY-WISE REVENUE DETAILS TABLE ─── */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <div>
-            <h3 className="font-black text-base sm:text-lg text-[#18232D] flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#159447]" />
-              <span>Day-wise Revenue Audit Breakdown</span>
-            </h3>
-            <p className="text-xs text-[#5B6470]">
-              Complete daily payment and revenue ledger for {fromDate} to {toDate}
+            <p className="text-xs text-[#5B6470] mt-1">
+              Comparative visualization across Overall Revenue, Our Platform Profit, and Government Remittances
             </p>
           </div>
-          <span className="text-xs font-bold text-[#159447] bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full self-start">
-            {dailySeries.length} Days Audited
+
+          {/* Controls: Daily/Monthly Switcher + Metric Filter */}
+          <div className="flex flex-wrap items-center gap-3">
+            
+            {/* Daily vs Monthly Switch */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+              <button
+                onClick={() => {
+                  setChartViewMode('daily');
+                  setSelectedPointDetail(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                  chartViewMode === 'daily'
+                    ? 'bg-white text-[#18232D] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Daily Data (દૈનિક)
+              </button>
+              <button
+                onClick={() => {
+                  setChartViewMode('monthly');
+                  setSelectedPointDetail(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                  chartViewMode === 'monthly'
+                    ? 'bg-white text-[#18232D] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Monthly Data (માસિક)
+              </button>
+            </div>
+
+            {/* Metric Mode Filter */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+              <button
+                onClick={() => setChartMetricMode('all_three')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all ${
+                  chartMetricMode === 'all_three'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All 3 Metrics
+              </button>
+              <button
+                onClick={() => setChartMetricMode('gross')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all ${
+                  chartMetricMode === 'gross'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Overall (Gross)
+              </button>
+              <button
+                onClick={() => setChartMetricMode('portal')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all ${
+                  chartMetricMode === 'portal'
+                    ? 'bg-[#159447] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Our Profit
+              </button>
+              <button
+                onClick={() => setChartMetricMode('govt')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all ${
+                  chartMetricMode === 'govt'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Govt Paid
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Chart Legend */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 font-bold text-blue-900">
+              <span className="w-3 h-3 rounded-md bg-blue-600" />
+              <span>Overall Revenue (Gross)</span>
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-emerald-800">
+              <span className="w-3 h-3 rounded-md bg-[#159447]" />
+              <span>Our Side Profit (Portal Fee)</span>
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-amber-800">
+              <span className="w-3 h-3 rounded-md bg-amber-400" />
+              <span>Amount Paid in Govt Side</span>
+            </span>
+          </div>
+
+          <span className="text-[11px] text-[#5B6470] font-semibold bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+            💡 Hover over bars for exact breakdown • Click to pin day details
           </span>
         </div>
 
-        {dailySeries.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 text-xs font-bold">
-            No daily records found in database for the selected criteria.
+        {/* ── Chart Canvas Plot Area ── */}
+        {loading ? (
+          <div className="h-72 sm:h-80 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2 text-slate-400">
+              <RefreshCw className="w-7 h-7 animate-spin text-[#159447]" />
+              <span className="text-xs font-bold">Querying database revenue time series...</span>
+            </div>
           </div>
+        ) : chartViewMode === 'daily' ? (
+          /* DAILY BAR CHART */
+          dailySeries.length === 0 ? (
+            <div className="h-72 flex items-center justify-center text-slate-400 text-xs font-bold">
+              No daily revenue records found for the selected date range.
+            </div>
+          ) : (
+            <div className="mt-4">
+              <div className="flex">
+                {/* Y-Axis Currency Label Column */}
+                <div className="flex flex-col justify-between h-64 sm:h-72 pr-3 text-[10px] font-bold text-slate-400 select-none text-right shrink-0 w-12 sm:w-16">
+                  {yTicksDaily.map((tick, i) => (
+                    <span key={i} className="leading-none">
+                      {formatYAxisTick(tick)}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Main Plot Area */}
+                <div className="relative flex-1 h-64 sm:h-72">
+                  {/* Guide lines */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                    {yTicksDaily.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-full border-b ${
+                          i === yTicksDaily.length - 1 ? 'border-slate-300' : 'border-dashed border-slate-100'
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Interactive Bars */}
+                  <div className="absolute inset-0 flex items-end justify-between gap-1 sm:gap-2 px-1">
+                    {dailySeries.map(d => {
+                      const maxVal = maxDayCeiling || 1000;
+                      const grossHeight = Math.min(100, Math.max(0, (d.gross / maxVal) * 100));
+                      const portalHeight = Math.min(100, Math.max(0, (d.portal / maxVal) * 100));
+                      const govtHeight = Math.min(100, Math.max(0, (d.govt / maxVal) * 100));
+
+                      const isSelected = selectedPointDetail?.date === d.date;
+
+                      return (
+                        <div
+                          key={d.date}
+                          onClick={() => setSelectedPointDetail(d)}
+                          className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                        >
+                          {/* Floating Tooltip */}
+                          <div className="absolute -top-20 z-30 hidden group-hover:flex flex-col items-center bg-slate-900/95 backdrop-blur-xs text-white text-[10px] font-semibold py-2 px-3 rounded-xl shadow-2xl pointer-events-none whitespace-nowrap border border-slate-700">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                              <span>{d.date}</span>
+                              <span className="text-slate-400 font-normal">({d.weekday})</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 mt-1.5 text-center">
+                              <div>
+                                <span className="text-[9px] text-blue-300 block">Overall</span>
+                                <span className="font-black text-blue-200">₹{d.gross.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-emerald-300 block">Our Profit</span>
+                                <span className="font-black text-emerald-300">₹{d.portal.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-amber-300 block">Govt Paid</span>
+                                <span className="font-black text-amber-300">₹{d.govt.toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                            <span className="text-[9px] text-slate-300 mt-1 block">
+                              {d.successful_txns} payments processed
+                            </span>
+                            <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-1" />
+                          </div>
+
+                          {/* Hover Overlay Highlight */}
+                          <div className="absolute inset-0 bg-[#159447]/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+                          {/* Bar Render based on Metric Mode */}
+                          {chartMetricMode === 'all_three' ? (
+                            /* Multi-Bar Grouped */
+                            <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 max-w-[32px] sm:max-w-[40px]">
+                              {/* Overall bar */}
+                              <div
+                                style={{ height: `${grossHeight}%` }}
+                                className={`w-1.5 sm:w-2.5 rounded-t-sm bg-blue-600 transition-all duration-300 ${
+                                  isSelected ? 'ring-2 ring-blue-500 brightness-110' : 'group-hover:brightness-110'
+                                }`}
+                              />
+                              {/* Profit bar */}
+                              <div
+                                style={{ height: `${portalHeight}%` }}
+                                className={`w-1.5 sm:w-2.5 rounded-t-sm bg-[#159447] transition-all duration-300 ${
+                                  isSelected ? 'ring-2 ring-emerald-500 brightness-110' : 'group-hover:brightness-110'
+                                }`}
+                              />
+                              {/* Govt bar */}
+                              <div
+                                style={{ height: `${govtHeight}%` }}
+                                className={`w-1.5 sm:w-2.5 rounded-t-sm bg-amber-400 transition-all duration-300 ${
+                                  isSelected ? 'ring-2 ring-amber-500 brightness-110' : 'group-hover:brightness-110'
+                                }`}
+                              />
+                            </div>
+                          ) : chartMetricMode === 'gross' ? (
+                            <div
+                              style={{ height: `${grossHeight}%` }}
+                              className={`w-full max-w-[18px] sm:max-w-[26px] rounded-t-md bg-blue-600 transition-all duration-300 shadow-2xs ${
+                                isSelected ? 'ring-2 ring-blue-600 shadow-md brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                          ) : chartMetricMode === 'portal' ? (
+                            <div
+                              style={{ height: `${portalHeight}%` }}
+                              className={`w-full max-w-[18px] sm:max-w-[26px] rounded-t-md bg-[#159447] transition-all duration-300 shadow-2xs ${
+                                isSelected ? 'ring-2 ring-emerald-600 shadow-md brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              style={{ height: `${govtHeight}%` }}
+                              className={`w-full max-w-[18px] sm:max-w-[26px] rounded-t-md bg-amber-400 transition-all duration-300 shadow-2xs ${
+                                isSelected ? 'ring-2 ring-amber-500 shadow-md brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                          )}
+
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* X-Axis Aligned Labels */}
+              <div className="flex ml-12 sm:ml-16 mt-3 text-[9px] sm:text-[10px] font-bold text-slate-400">
+                <div className="flex-1 flex items-center justify-between px-1">
+                  {dailySeries.map((d, idx) => {
+                    const step = Math.max(1, Math.round(dailySeries.length / 8));
+                    const isKey = idx === 0 || idx === dailySeries.length - 1 || idx % step === 0;
+                    const isSelected = selectedPointDetail?.date === d.date;
+
+                    return (
+                      <div key={d.date} className="flex-1 text-center">
+                        {isKey ? (
+                          <span className={`inline-block px-1 rounded ${
+                            isSelected ? 'text-emerald-700 font-black bg-emerald-50' : 'text-slate-600'
+                          }`}>
+                            {d.day}
+                          </span>
+                        ) : (
+                          <span className="opacity-0 select-none">·</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )
         ) : (
-          <div className="overflow-x-auto max-h-80 overflow-y-auto scrollbar-thin">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-[#5B6470]">
-                  <th className="py-2.5 px-3">Date</th>
-                  <th className="py-2.5 px-3">Day</th>
-                  <th className="py-2.5 px-3 text-center">Total Payments</th>
-                  <th className="py-2.5 px-3 text-center">Successful</th>
-                  <th className="py-2.5 px-3 text-right">Govt Fee (₹)</th>
-                  <th className="py-2.5 px-3 text-right">Portal Fee (₹)</th>
-                  <th className="py-2.5 px-3 text-right">Gross Revenue (₹)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {dailySeries.map(d => (
-                  <tr key={d.date} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#18232D]">{d.date}</td>
-                    <td className="py-2.5 px-3 text-slate-600 font-semibold">{d.weekday}</td>
-                    <td className="py-2.5 px-3 text-center font-bold text-slate-700">{d.txns}</td>
-                    <td className="py-2.5 px-3 text-center font-bold text-emerald-700">{d.successful_txns}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-amber-800">₹{d.govt.toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-blue-800">₹{d.portal.toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 px-3 text-right font-black text-[#159447]">₹{d.gross.toLocaleString('en-IN')}</td>
-                  </tr>
+          /* MONTHLY BAR CHART (JAN TO DEC 2026) */
+          <div className="mt-4">
+            <div className="flex">
+              {/* Y-Axis Label Column */}
+              <div className="flex flex-col justify-between h-64 sm:h-72 pr-3 text-[10px] font-bold text-slate-400 select-none text-right shrink-0 w-12 sm:w-16">
+                {yTicksMonthly.map((tick, i) => (
+                  <span key={i} className="leading-none">
+                    {formatYAxisTick(tick)}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Main Plot Area */}
+              <div className="relative flex-1 h-64 sm:h-72">
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                  {yTicksMonthly.map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-full border-b ${
+                        i === yTicksMonthly.length - 1 ? 'border-slate-300' : 'border-dashed border-slate-100'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Bars */}
+                <div className="absolute inset-0 flex items-end justify-between gap-1.5 sm:gap-3 px-2">
+                  {monthlySeries.map(m => {
+                    const maxVal = maxMonthCeiling || 50000;
+                    const grossHeight = Math.min(100, Math.max(0, (m.gross / maxVal) * 100));
+                    const portalHeight = Math.min(100, Math.max(0, (m.portal / maxVal) * 100));
+                    const govtHeight = Math.min(100, Math.max(0, (m.govt / maxVal) * 100));
+                    const isSelected = selectedPointDetail?.month === m.month;
+
+                    return (
+                      <div
+                        key={m.month}
+                        onClick={() => setSelectedPointDetail(m)}
+                        className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                      >
+                        {/* Tooltip */}
+                        <div className="absolute -top-20 z-30 hidden group-hover:flex flex-col items-center bg-slate-900/95 backdrop-blur-xs text-white text-[10px] font-semibold py-2 px-3 rounded-xl shadow-2xl pointer-events-none whitespace-nowrap border border-slate-700">
+                          <div className="font-bold text-xs text-white">{m.month}</div>
+                          <div className="grid grid-cols-3 gap-2 mt-1.5 text-center">
+                            <div>
+                              <span className="text-[9px] text-blue-300 block">Overall</span>
+                              <span className="font-black text-blue-200">₹{m.gross.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-emerald-300 block">Our Profit</span>
+                              <span className="font-black text-emerald-300">₹{m.portal.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-amber-300 block">Govt Paid</span>
+                              <span className="font-black text-amber-300">₹{m.govt.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-slate-300 mt-1 block">
+                            {m.txns} total applications
+                          </span>
+                          <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-1" />
+                        </div>
+
+                        {/* Bar Rendering */}
+                        {chartMetricMode === 'all_three' ? (
+                          <div className="w-full flex items-end justify-center gap-1 max-w-[44px]">
+                            <div
+                              style={{ height: `${grossHeight}%` }}
+                              className={`w-2.5 sm:w-3.5 rounded-t-md bg-blue-600 transition-all duration-300 ${
+                                isSelected ? 'ring-2 ring-blue-500 brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                            <div
+                              style={{ height: `${portalHeight}%` }}
+                              className={`w-2.5 sm:w-3.5 rounded-t-md bg-[#159447] transition-all duration-300 ${
+                                isSelected ? 'ring-2 ring-emerald-500 brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                            <div
+                              style={{ height: `${govtHeight}%` }}
+                              className={`w-2.5 sm:w-3.5 rounded-t-md bg-amber-400 transition-all duration-300 ${
+                                isSelected ? 'ring-2 ring-amber-500 brightness-110' : 'group-hover:brightness-110'
+                              }`}
+                            />
+                          </div>
+                        ) : chartMetricMode === 'gross' ? (
+                          <div
+                            style={{ height: `${grossHeight}%` }}
+                            className={`w-full max-w-[32px] sm:max-w-[44px] rounded-t-lg bg-blue-600 transition-all duration-300 ${
+                              isSelected ? 'ring-2 ring-blue-600 shadow-md brightness-110' : 'group-hover:brightness-110'
+                            }`}
+                          />
+                        ) : chartMetricMode === 'portal' ? (
+                          <div
+                            style={{ height: `${portalHeight}%` }}
+                            className={`w-full max-w-[32px] sm:max-w-[44px] rounded-t-lg bg-[#159447] transition-all duration-300 ${
+                              isSelected ? 'ring-2 ring-emerald-600 shadow-md brightness-110' : 'group-hover:brightness-110'
+                            }`}
+                          />
+                        ) : (
+                          <div
+                            style={{ height: `${govtHeight}%` }}
+                            className={`w-full max-w-[32px] sm:max-w-[44px] rounded-t-lg bg-amber-400 transition-all duration-300 ${
+                              isSelected ? 'ring-2 ring-amber-500 shadow-md brightness-110' : 'group-hover:brightness-110'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* X-Axis Month Labels */}
+            <div className="flex ml-12 sm:ml-16 mt-3 text-[10px] sm:text-xs font-bold text-slate-500">
+              <div className="flex-1 flex items-center justify-between px-2">
+                {monthlySeries.map(m => (
+                  <div key={m.month} className="flex-1 text-center truncate">
+                    {m.monthShort}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Selected Data Point Insight Card */}
+        {selectedPointDetail && (
+          <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-[#159447] text-white font-black text-xs">
+                {selectedPointDetail.day || selectedPointDetail.monthShort || 'AUDIT'}
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-[#18232D]">
+                  {selectedPointDetail.date || selectedPointDetail.month} ({selectedPointDetail.weekday || '2026'})
+                </h4>
+                <p className="text-xs text-[#5B6470] mt-0.5">
+                  Overall Collection: <strong className="text-blue-900">₹{selectedPointDetail.gross.toLocaleString('en-IN')}</strong> | Our Side Profit: <strong className="text-emerald-700">₹{selectedPointDetail.portal.toLocaleString('en-IN')}</strong> | Govt Paid: <strong className="text-amber-800">₹{selectedPointDetail.govt.toLocaleString('en-IN')}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedPointDetail(null)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 self-end sm:self-center"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
       </div>
 
-      {/* ─── 6. RECENT TRANSACTIONS TABLE (WITH REAL-TIME DB PAGINATION) ─── */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <h3 className="font-black text-base sm:text-lg text-[#18232D] flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-purple-600" />
-              <span>Real-time Database Transactions Ledger</span>
-            </h3>
-            <p className="text-xs text-[#5B6470]">
-              Showing {transactionsData.total_count} total payments matching database queries
-            </p>
+      {/* ─── 4. THE 3 DEDICATED FINANCIAL TABLES ─── */}
+      <div className="space-y-5">
+        
+        {/* Table Selector Tabs Bar */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-xs flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            
+            {/* Tab 1: Overall Revenue */}
+            <button
+              onClick={() => setActiveTableTab('overall')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+                activeTableTab === 'overall'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>1. Overall Revenue Ledger</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                activeTableTab === 'overall' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                ₹{(summary?.gross_revenue || 0).toLocaleString('en-IN')}
+              </span>
+            </button>
+
+            {/* Tab 2: Profit for Our Side Revenue */}
+            <button
+              onClick={() => setActiveTableTab('profit')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+                activeTableTab === 'profit'
+                  ? 'bg-[#159447] text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>2. Profit for Our Side Revenue</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                activeTableTab === 'profit' ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                ₹{(summary?.portal_earnings || 0).toLocaleString('en-IN')}
+              </span>
+            </button>
+
+            {/* Tab 3: Amount Paid in Government Side */}
+            <button
+              onClick={() => setActiveTableTab('govt')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+                activeTableTab === 'govt'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Landmark className="w-4 h-4" />
+              <span>3. Amount Paid in Govt Side</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                activeTableTab === 'govt' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-800'
+              }`}>
+                ₹{(summary?.govt_remittance || 0).toLocaleString('en-IN')}
+              </span>
+            </button>
+
+            {/* Tab 4: View All 3 Together */}
+            <button
+              onClick={() => setActiveTableTab('all')}
+              className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                activeTableTab === 'all'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>View All 3 Tables</span>
+            </button>
+
+          </div>
+
+          <div className="px-3 text-xs text-[#5B6470] font-semibold">
+            Status: <span className="text-[#159447] font-bold">● Live Database Synchronized</span>
           </div>
         </div>
 
-        {/* Table Container */}
-        {loading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin text-[#159447]" />
-            <span className="text-xs font-bold">Querying database transactions...</span>
-          </div>
-        ) : transactionsData.transactions.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-bold text-sm text-slate-600">No payment data available for this period.</p>
-            <p className="text-xs text-slate-400">Try adjusting date range or clearing filter parameters</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[750px]">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-[#5B6470]">
-                  <th className="py-3 px-3">Transaction / Date</th>
-                  <th className="py-3 px-3">Application #</th>
-                  <th className="py-3 px-3">Citizen User</th>
-                  <th className="py-3 px-3">Service Form</th>
-                  <th className="py-3 px-3 text-right">Govt Fee</th>
-                  <th className="py-3 px-3 text-right">Portal Fee</th>
-                  <th className="py-3 px-3 text-right">Amount (₹)</th>
-                  <th className="py-3 px-3">Method</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3 text-center">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {transactionsData.transactions.map(txn => (
-                  <tr key={txn.id} className="hover:bg-slate-50/80 transition group">
-                    {/* Invoice & Date */}
-                    <td className="py-3 px-3">
-                      <span className="font-mono font-bold text-[#18232D] block">
-                        {txn.invoice_no}
-                      </span>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {txn.date}
-                      </span>
-                    </td>
+        {/* ══════════════════════════════════════════════════════════════════════
+            TABLE 1: OVERALL REVENUE LEDGER
+        ══════════════════════════════════════════════════════════════════════ */}
+        {(activeTableTab === 'overall' || activeTableTab === 'all') && (
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-7 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-blue-50 text-blue-600 font-bold text-xs">
+                    TABLE 1
+                  </span>
+                  <h3 className="font-black text-base sm:text-lg text-[#18232D]">
+                    {language === 'gu' ? 'કુલ એકંદર આવક પત્રક (Overall Revenue Ledger)' : 'Table 1: Overall Revenue Ledger (Gross Citizen Payments)'}
+                  </h3>
+                </div>
+                <p className="text-xs text-[#5B6470] mt-1">
+                  Individual citizen application fees collected across Gujarat portals • Total recorded: {transactionsData.total_count} transactions
+                </p>
+              </div>
 
-                    {/* App Number */}
-                    <td className="py-3 px-3 font-mono font-bold text-slate-600">
-                      {txn.application_number}
-                    </td>
+              <button
+                onClick={handleExportOverallRevenueCSV}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition self-start sm:self-center"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Export Table 1 CSV</span>
+              </button>
+            </div>
 
-                    {/* Citizen User */}
-                    <td className="py-3 px-3">
-                      <span className="font-bold text-[#18232D] block">
-                        {txn.citizen_name}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {txn.citizen_phone}
-                      </span>
-                    </td>
+            {/* Table Container */}
+            {loading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+                <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="text-xs font-bold">Loading overall revenue ledger...</span>
+              </div>
+            ) : transactionsData.transactions.length === 0 ? (
+              <div className="text-center py-10 text-slate-400">
+                <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                <p className="font-bold text-sm text-slate-600">No payment transactions found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-[#5B6470]">
+                      <th className="py-3 px-3">Invoice # / Date</th>
+                      <th className="py-3 px-3">Application #</th>
+                      <th className="py-3 px-3">Citizen Applicant</th>
+                      <th className="py-3 px-3">Service Scheme</th>
+                      <th className="py-3 px-3 text-right">Govt Fee</th>
+                      <th className="py-3 px-3 text-right">Portal Fee</th>
+                      <th className="py-3 px-3 text-right">Gross Total</th>
+                      <th className="py-3 px-3 text-center">Payment Mode</th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-center">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {transactionsData.transactions.map(t => (
+                      <tr key={t.id} className="hover:bg-blue-50/40 transition">
+                        <td className="py-3 px-3 font-mono">
+                          <span className="font-bold text-[#18232D] block">{t.invoice_no}</span>
+                          <span className="text-[10px] text-slate-400">{t.date}</span>
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-slate-700">
+                          {t.application_number}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-[#18232D]">{t.citizen_name}</div>
+                          <div className="text-[11px] text-slate-500">📍 {t.district} • {t.citizen_phone}</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-semibold text-slate-800 block">{t.form_title_en}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">{t.operator_name}</span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-amber-800">
+                          ₹{t.govt_fee.toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-[#159447]">
+                          ₹{t.portal_fee.toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <span className="font-black text-blue-950 text-sm bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                            ₹{t.total_fee.toLocaleString('en-IN')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                            {t.payment_method}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            PAID
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => setSelectedInvoiceTxn(t)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-blue-600 hover:bg-blue-50 transition"
+                            title="View Official Receipt"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-                    {/* Service Form */}
-                    <td className="py-3 px-3">
-                      <span className="font-bold text-[#18232D] block max-w-[180px] truncate" title={txn.form_title_en}>
-                        {language === 'gu' && txn.form_title_gu ? txn.form_title_gu : txn.form_title_en}
-                      </span>
-                    </td>
-
-                    {/* Govt Fee */}
-                    <td className="py-3 px-3 text-right font-bold text-amber-800">
-                      ₹{txn.govt_fee}
-                    </td>
-
-                    {/* Portal Fee */}
-                    <td className="py-3 px-3 text-right font-bold text-blue-800">
-                      ₹{txn.portal_fee}
-                    </td>
-
-                    {/* Total Paid */}
-                    <td className="py-3 px-3 text-right">
-                      <span className="font-black text-[#159447] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                        ₹{txn.total_fee}
-                      </span>
-                    </td>
-
-                    {/* Payment Method */}
-                    <td className="py-3 px-3">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
-                        {txn.payment_method}
-                      </span>
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3 px-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        txn.status === 'paid'
-                          ? 'bg-emerald-50 text-[#159447] border border-emerald-200'
-                          : txn.status === 'pending'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
-                        {txn.status}
-                      </span>
-                    </td>
-
-                    {/* Receipt Modal Trigger */}
-                    <td className="py-3 px-3 text-center">
-                      <button
-                        onClick={() => setSelectedInvoiceTxn(txn)}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-[#159447] hover:border-emerald-300 hover:bg-emerald-50 transition"
-                        title="View & Print Tax Receipt"
-                      >
-                        <Receipt className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Pagination */}
+            {transactionsData.total_pages > 1 && (
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                <span className="text-slate-500">
+                  Page {transactionsData.page} of {transactionsData.total_pages} ({transactionsData.total_count} records)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="font-bold text-slate-800 px-2">{currentPage}</span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(transactionsData.total_pages, prev + 1))}
+                    disabled={currentPage === transactionsData.total_pages}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Pagination Bar */}
-        {transactionsData.total_pages > 1 && (
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-bold">
-              Page {transactionsData.page} of {transactionsData.total_pages} ({transactionsData.total_count} records)
-            </span>
-            <div className="flex items-center gap-1">
+        {/* ══════════════════════════════════════════════════════════════════════
+            TABLE 2: PROFIT FOR OUR SIDE REVENUE (SERVICE MARGINS & EXPENSES)
+        ══════════════════════════════════════════════════════════════════════ */}
+        {(activeTableTab === 'profit' || activeTableTab === 'all') && (
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-7 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-emerald-50 text-[#159447] font-bold text-xs">
+                    TABLE 2
+                  </span>
+                  <h3 className="font-black text-base sm:text-lg text-[#18232D]">
+                    {language === 'gu' ? 'અમારી બાજુનો નફો અને સર્વિસ આવક પત્રક' : 'Table 2: Profit for Our Side Revenue & Operational Margins'}
+                  </h3>
+                </div>
+                <p className="text-xs text-[#5B6470] mt-1">
+                  Service charges collected, operator processing cost allocations, and net retained platform profit
+                </p>
+              </div>
+
               <button
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition"
+                onClick={handleExportProfitCSV}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition self-start sm:self-center"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Export Table 2 CSV</span>
               </button>
-              <span className="px-3 py-1 rounded-xl bg-slate-100 font-bold text-slate-800">
-                {currentPage}
-              </span>
-              <button
-                disabled={currentPage >= transactionsData.total_pages}
-                onClick={() => setCurrentPage(prev => Math.min(transactionsData.total_pages, prev + 1))}
-                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            </div>
+
+            {/* Top Profit Summary Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Gross Service Revenue</span>
+                <span className="text-sm font-black text-emerald-950">₹{profitTotals.totalRevenue.toLocaleString('en-IN')}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Operator Disbursements</span>
+                <span className="text-sm font-black text-rose-800">₹{profitTotals.totalExpenses.toLocaleString('en-IN')}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Net Platform Profit</span>
+                <span className="text-sm font-black text-[#159447]">₹{profitTotals.totalProfit.toLocaleString('en-IN')}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Average Profit Margin</span>
+                <span className="text-sm font-black text-emerald-900">{profitTotals.avgMargin.toFixed(1)}%</span>
+              </div>
+            </div>
+
+            {/* Table Container */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-[#5B6470]">
+                    <th className="py-3 px-3">Service Scheme</th>
+                    <th className="py-3 px-3">Gujarat Department</th>
+                    <th className="py-3 px-3 text-center">Applications</th>
+                    <th className="py-3 px-3 text-right">Unit Portal Fee</th>
+                    <th className="py-3 px-3 text-right">Gross Platform Rev.</th>
+                    <th className="py-3 px-3 text-right">Operator Cost</th>
+                    <th className="py-3 px-3 text-right">Net Profit (₹)</th>
+                    <th className="py-3 px-3 text-center">Profit Margin (%)</th>
+                    <th className="py-3 px-3 text-right">Profit Share</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {platformProfitData.map(p => (
+                    <tr key={p.service_id} className="hover:bg-emerald-50/40 transition">
+                      <td className="py-3 px-3">
+                        <span className="font-bold text-[#18232D] block">{p.service_title_en}</span>
+                        <span className="text-[10px] text-slate-400">{p.service_title_gu}</span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 font-semibold">
+                        {p.department_name_en}
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-slate-800">
+                        {p.applications_count}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold text-slate-700">
+                        ₹{p.unit_service_fee}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-slate-900">
+                        ₹{p.gross_platform_revenue.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold text-rose-700">
+                        -₹{p.operator_payout_expense.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="font-black text-[#159447] text-sm bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                          ₹{p.net_platform_profit.toLocaleString('en-IN')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full text-[11px]">
+                          {p.profit_margin_percentage}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-slate-700">
+                        {p.profit_share_percentage}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            TABLE 3: AMOUNT PAID IN GOVERNMENT SIDE (TREASURY REMITTANCES)
+        ══════════════════════════════════════════════════════════════════════ */}
+        {(activeTableTab === 'govt' || activeTableTab === 'all') && (
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-7 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-amber-50 text-amber-600 font-bold text-xs">
+                    TABLE 3
+                  </span>
+                  <h3 className="font-black text-base sm:text-lg text-[#18232D]">
+                    {language === 'gu' ? 'સરકારી તિજોરી / પોર્ટલ ચુકવણી પત્રક' : 'Table 3: Amount Paid in Government Side (Treasury Remittance)'}
+                  </h3>
+                </div>
+                <p className="text-xs text-[#5B6470] mt-1">
+                  Official statutory government fees remitted to Gujarat Cyber Treasury, AnyRoR, Digital Gujarat, and Parivahan heads
+                </p>
+              </div>
+
+              <button
+                onClick={handleExportGovtRemittancesCSV}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition self-start sm:self-center"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Export Table 3 CSV</span>
+              </button>
+            </div>
+
+            {/* Top Govt Summary Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-amber-900 uppercase block">Total Statutory Fees Remitted</span>
+                <span className="text-sm font-black text-amber-950">₹{govtTotals.totalRemitted.toLocaleString('en-IN')}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-amber-900 uppercase block">Applications Remitted</span>
+                <span className="text-sm font-black text-amber-900">{govtTotals.totalApps} Certificates</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-amber-900 uppercase block">Remittance Gateway</span>
+                <span className="text-xs font-black text-emerald-800">Cyber Treasury Gujarat (SBI e-Pay)</span>
+              </div>
+            </div>
+
+            {/* Table Container */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-[#5B6470]">
+                    <th className="py-3 px-3">Department & Portal</th>
+                    <th className="py-3 px-3">Service Scheme</th>
+                    <th className="py-3 px-3 text-right">Unit Govt Fee</th>
+                    <th className="py-3 px-3 text-center">Applications Remitted</th>
+                    <th className="py-3 px-3 text-right">Total Remitted (₹)</th>
+                    <th className="py-3 px-3">Treasury Head Code</th>
+                    <th className="py-3 px-3 text-center">Settlement Status</th>
+                    <th className="py-3 px-3 text-right">Last Settled</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {govtRemittanceData.map(g => (
+                    <tr key={g.id} className="hover:bg-amber-50/40 transition">
+                      <td className="py-3 px-3">
+                        <span className="font-bold text-[#18232D] block">{g.department_name_en}</span>
+                        <span className="text-[10px] text-slate-500">🏛️ {g.portal_name}</span>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        {g.service_title_en}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold text-slate-700">
+                        ₹{g.unit_govt_fee}
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-slate-800">
+                        {g.applications_remitted}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="font-black text-amber-950 text-sm bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                          ₹{g.total_remitted_inr.toLocaleString('en-IN')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-600">
+                        {g.treasury_head_code}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>100% Remitted</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-[11px] text-slate-500">
+                        {g.last_settlement_date}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {/* ─── 7. OFFICIAL INVOICE RECEIPT MODAL ─── */}
+      {/* ─── 5. INVOICE / RECEIPT MODAL ─── */}
       {selectedInvoiceTxn && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-scaleUp">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-br from-[#18232D] to-slate-800 p-5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#159447] flex items-center justify-center font-black text-white">
-                  FS
-                </div>
-                <div>
-                  <h4 className="font-black text-base">Payment Receipt</h4>
-                  <p className="text-[11px] text-slate-300">FormSeva Gujarat Service Acknowledgement</p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-scaleUp space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#159447]" />
+                <h3 className="font-black text-base text-[#18232D]">Official Payment Receipt</h3>
               </div>
               <button
                 onClick={() => setSelectedInvoiceTxn(null)}
-                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Receipt Details */}
-            <div className="p-6 space-y-4 text-xs">
-              <div className="flex justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Invoice Number</span>
-                  <span className="font-mono font-bold text-[#18232D]">{selectedInvoiceTxn.invoice_no}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Transaction Date</span>
-                  <span className="font-bold text-[#18232D]">{selectedInvoiceTxn.date}</span>
-                </div>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Invoice Number:</span>
+                <span className="font-bold text-slate-900">{selectedInvoiceTxn.invoice_no}</span>
               </div>
-
-              {/* Citizen Details */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Applicant Details</span>
-                <p className="font-bold text-[#18232D]">{selectedInvoiceTxn.citizen_name}</p>
-                <p className="text-slate-500">{selectedInvoiceTxn.citizen_phone} | Application: <span className="font-mono font-bold">{selectedInvoiceTxn.application_number}</span></p>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Application Number:</span>
+                <span className="font-bold text-slate-900">{selectedInvoiceTxn.application_number}</span>
               </div>
-
-              {/* Service Item */}
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Applied Certificate</span>
-                <p className="font-bold text-[#18232D]">{selectedInvoiceTxn.form_title_en}</p>
-                <p className="text-slate-500">{selectedInvoiceTxn.form_title_gu}</p>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date & Time:</span>
+                <span className="font-bold text-slate-900">{selectedInvoiceTxn.date}</span>
               </div>
-
-              {/* Fee Breakdown */}
-              <div className="pt-3 border-t border-dashed border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Official Government Statutory Fee:</span>
-                  <span className="font-bold text-[#18232D]">₹{selectedInvoiceTxn.govt_fee}.00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">FormSeva Assisted Filing Service Fee:</span>
-                  <span className="font-bold text-[#18232D]">₹{selectedInvoiceTxn.portal_fee}.00</span>
-                </div>
-                <div className="flex justify-between text-slate-500 text-[11px]">
-                  <span>Payment Gateway Mode:</span>
-                  <span className="font-bold uppercase text-slate-700">{selectedInvoiceTxn.payment_method}</span>
-                </div>
-                <div className="flex justify-between text-slate-500 text-[11px]">
-                  <span>Specialist Assigned:</span>
-                  <span className="font-bold text-slate-700">{selectedInvoiceTxn.operator_name}</span>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                  <span className="font-black text-sm text-[#18232D]">Total Amount Paid:</span>
-                  <span className="text-lg font-black text-[#159447]">₹{selectedInvoiceTxn.total_fee}.00</span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Citizen Applicant:</span>
+                <span className="font-bold text-slate-900">{selectedInvoiceTxn.citizen_name}</span>
               </div>
-
-              {/* Verified Badge */}
-              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-[11px] text-emerald-800 font-bold">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#159447]" />
-                  <span>Payment Verified in Database</span>
-                </span>
-                <span className="text-slate-500 text-[10px]">Ref: {selectedInvoiceTxn.payment_reference?.slice(0, 16)}...</span>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Certificate Service:</span>
+                <span className="font-bold text-slate-900">{selectedInvoiceTxn.form_title_en}</span>
+              </div>
+              <div className="border-t border-slate-200 pt-2 flex justify-between">
+                <span className="text-slate-500">Government Statutory Fee:</span>
+                <span className="font-bold text-amber-800">₹{selectedInvoiceTxn.govt_fee}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">FormSeva Portal Service Fee:</span>
+                <span className="font-bold text-emerald-700">₹{selectedInvoiceTxn.portal_fee}</span>
+              </div>
+              <div className="border-t border-slate-300 pt-2 flex justify-between text-sm">
+                <span className="font-bold text-slate-900">Total Paid (Gross):</span>
+                <span className="font-black text-[#159447]">₹{selectedInvoiceTxn.total_fee}</span>
+              </div>
+              <div className="flex justify-between pt-1 text-[11px] text-slate-500">
+                <span>Payment Mode:</span>
+                <span className="font-bold uppercase">{selectedInvoiceTxn.payment_method}</span>
               </div>
             </div>
 
-            {/* Receipt Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setSelectedInvoiceTxn(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition"
-              >
-                Close
-              </button>
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#159447] text-white hover:bg-[#12803c] transition flex items-center gap-1.5 shadow-xs"
+                className="px-4 py-2 bg-[#159447] text-white font-bold text-xs rounded-xl hover:bg-[#12803c] transition shadow-xs flex items-center gap-1.5"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-4 h-4" />
                 <span>Print Official Receipt</span>
+              </button>
+              <button
+                onClick={() => setSelectedInvoiceTxn(null)}
+                className="px-4 py-2 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition"
+              >
+                Close
               </button>
             </div>
           </div>

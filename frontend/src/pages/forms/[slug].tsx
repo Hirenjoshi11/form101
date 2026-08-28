@@ -16,6 +16,7 @@ import {
   Sparkles, ArrowLeft, RefreshCw, AlertCircle, Phone,
   Edit3, Check, HelpCircle, Building
 } from 'lucide-react';
+import { validateField } from '@/lib/validation';
 
 export default function FormDetailPage() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function FormDetailPage() {
 
   const [activeStepKey, setActiveStepKey] = useState<string>('applicant');
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, File>>({});
 
   const [resubmissionTarget, setResubmissionTarget] = useState<FormSubmission | null>(null);
@@ -211,24 +213,28 @@ export default function FormDetailPage() {
     language === 'gu' ? f.title_gu : language === 'hi' ? f.title_hi : f.title_en;
 
   const handleNext = () => {
-    // Validate mobile number if field exists on current step
     const currentFields = getFieldsForStep(activeStepKey);
-    const hasMobileField = currentFields.some(f => 
-      f.field_key === 'mobile_number' || f.field_key === 'mobile' || f.field_key === 'phone'
-    );
+    let stepHasError = false;
+    const newErrors = { ...fieldErrors };
 
-    if (hasMobileField) {
-      const phone = fieldValues.mobile_number || fieldValues.mobile || fieldValues.phone;
-      if (!phone || String(phone).replace(/[^0-9]/g, '').length < 10) {
-        alert(
-          language === 'gu'
-            ? 'કૃપા કરીને માન્ય ૧૦-અંકનો મોબાઈલ નંબર દાખલ કરો.'
-            : language === 'hi'
-            ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।'
-            : 'Please enter a valid 10-digit mobile number.'
-        );
-        return;
+    currentFields.forEach(field => {
+      const val = fieldValues[field.field_key];
+      const error = validateField(field, val, language);
+      if (error) {
+        newErrors[field.field_key] = error;
+        stepHasError = true;
+      } else {
+        delete newErrors[field.field_key];
       }
+    });
+
+    setFieldErrors(newErrors);
+
+    if (stepHasError) {
+      // Provide generic alert as fallback
+      const msg = language === 'gu' ? 'કૃપા કરીને લાલ અક્ષરે દર્શાવેલ ભૂલો સુધારો.' : language === 'hi' ? 'कृपया लाल रंग में दिखाई गई त्रुटियों को ठीक करें।' : 'Please fix the highlighted errors before proceeding.';
+      if (typeof window !== 'undefined') window.alert(msg);
+      return;
     }
 
     const nextIdx = currentStepIdx + 1;
@@ -434,7 +440,31 @@ export default function FormDetailPage() {
     );
   }
 
-  const totalFee = form.official_fee + form.service_fee;
+  const isNeet = form?.slug === 'neet_exam' || (typeof slug === 'string' && slug === 'neet_exam');
+
+  const getNeetCategoryFeeInfo = (values: Record<string, any>) => {
+    const cat = String(values.category || 'general').toLowerCase();
+    const gender = String(values.gender || '').toLowerCase();
+    const pwd = String(values.pwd_status || '').toLowerCase();
+    if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
+      return { officialFee: 1000, categoryName: 'SC / ST / PwBD / Third Gender', code: 'sc_st_pwd' };
+    }
+    if (cat === 'gen_ews' || cat === 'obc_ncl') {
+      return { officialFee: 1600, categoryName: 'General-EWS / OBC-NCL', code: 'ews_obc' };
+    }
+    return { officialFee: 1700, categoryName: 'General (UR)', code: 'general_ur' };
+  };
+
+  const neetFeeInfo = useMemo(() => {
+    if (isNeet) {
+      return getNeetCategoryFeeInfo(fieldValues);
+    }
+    return null;
+  }, [isNeet, fieldValues]);
+
+  const effectiveOfficialFee = neetFeeInfo ? neetFeeInfo.officialFee : (form?.official_fee ?? 0);
+  const effectiveServiceFee = form?.service_fee ?? 200;
+  const totalFee = effectiveOfficialFee + effectiveServiceFee;
 
   const getFieldsForStep = (stepKey: string): FormField[] => {
     const defaultMock = mockForms.find(m => m.slug === slug || m.id === form?.id);
@@ -643,11 +673,117 @@ export default function FormDetailPage() {
                     )}
                   </div>
                   
+                  {/* NTA NEET UG Category-Wise Fee Structure Banner */}
+                  {isNeet && (activeStepKey === 'candidate' || currentStepIdx === 0) && (
+                    <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-blue-800/60 shadow-sm space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center font-black text-base">
+                            ₹
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm sm:text-base text-white">
+                              {language === 'gu' ? 'NEET UG ૨૦૨૬ કેટેગરી મુજબ ફી માળખું' : 'NTA NEET UG 2026 Category-Wise Fee Structure'}
+                            </h3>
+                            <p className="text-[11px] text-blue-200">
+                              {language === 'gu' ? 'NTA સત્તાવાર જાહેરનામા મુજબ કેટેગરી-વાઇઝ સરકારી પરીક્ષા ફી' : 'Official NTA Examination Statutory Fees by Applicant Category'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 self-start sm:self-auto">
+                          NTA Official Fee Structure
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Category 1: General (UR) */}
+                        <div className={`p-3.5 rounded-2xl border transition-all ${
+                          neetFeeInfo?.code === 'general_ur'
+                            ? 'bg-blue-600 border-blue-400 text-white shadow-md ring-2 ring-blue-300'
+                            : 'bg-white/10 border-white/10 text-slate-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wide opacity-90">General (UR)</span>
+                            {neetFeeInfo?.code === 'general_ur' && (
+                              <span className="text-[9px] bg-white text-blue-900 font-black px-1.5 py-0.5 rounded-md">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xl sm:text-2xl font-black mt-1.5 text-white">₹1,700</div>
+                          <div className="text-[10px] opacity-80 mt-1">
+                            {language === 'gu' ? 'સામાન્ય / બિન-અનામત વર્ગ' : 'General / Unreserved'}
+                          </div>
+                        </div>
+
+                        {/* Category 2: General-EWS / OBC-NCL */}
+                        <div className={`p-3.5 rounded-2xl border transition-all ${
+                          neetFeeInfo?.code === 'ews_obc'
+                            ? 'bg-blue-600 border-blue-400 text-white shadow-md ring-2 ring-blue-300'
+                            : 'bg-white/10 border-white/10 text-slate-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wide opacity-90">General-EWS / OBC-NCL</span>
+                            {neetFeeInfo?.code === 'ews_obc' && (
+                              <span className="text-[9px] bg-white text-blue-900 font-black px-1.5 py-0.5 rounded-md">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xl sm:text-2xl font-black mt-1.5 text-white">₹1,600</div>
+                          <div className="text-[10px] opacity-80 mt-1">
+                            {language === 'gu' ? 'ઈડબલ્યુએસ / ઓબીસી નોન-ક્રીમીલેયર' : 'General-EWS & Central OBC-NCL'}
+                          </div>
+                        </div>
+
+                        {/* Category 3: SC / ST / PwBD / Third Gender */}
+                        <div className={`p-3.5 rounded-2xl border transition-all ${
+                          neetFeeInfo?.code === 'sc_st_pwd'
+                            ? 'bg-blue-600 border-blue-400 text-white shadow-md ring-2 ring-blue-300'
+                            : 'bg-white/10 border-white/10 text-slate-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wide opacity-90">SC / ST / PwBD / Third Gender</span>
+                            {neetFeeInfo?.code === 'sc_st_pwd' && (
+                              <span className="text-[9px] bg-white text-blue-900 font-black px-1.5 py-0.5 rounded-md">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xl sm:text-2xl font-black mt-1.5 text-white">₹1,000</div>
+                          <div className="text-[10px] opacity-80 mt-1">
+                            {language === 'gu' ? 'અનુ. જાતિ, અનુ. જનજાતિ, દિવ્યાંગ, તૃતીય પંથી' : 'SC, ST, PwBD (40%+), Third Gender'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-blue-200 border-t border-white/10">
+                        <span>
+                          {language === 'gu' ? 'તમારા કેટેગરી મુજબ લાગુ ફી: ' : 'Fee Applied for Selected Category: '}
+                          <strong className="text-white font-black text-sm">₹{effectiveOfficialFee.toLocaleString('en-IN')}</strong> ({neetFeeInfo?.categoryName})
+                        </span>
+                        <span className="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-md text-blue-100 font-medium">
+                          + FormSeva Portal Assistance: ₹{effectiveServiceFee}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <DynamicFormStep
                     fields={currentStepFields}
                     values={fieldValues}
-                    errors={{}}
-                    onChange={(key, val) => setFieldValues(prev => ({ ...prev, [key]: val }))}
+                    errors={fieldErrors}
+                    onChange={(key, val) => {
+                      setFieldValues(prev => ({ ...prev, [key]: val }));
+                      // Clear error on change if it was invalid
+                      if (fieldErrors[key]) {
+                        setFieldErrors(prev => {
+                          const newErrs = { ...prev };
+                          delete newErrs[key];
+                          return newErrs;
+                        });
+                      }
+                    }}
                   />
                 </div>
               )}
@@ -769,12 +905,24 @@ export default function FormDetailPage() {
                     <div>
                       <span className="text-xs text-emerald-800 font-bold block">{t.totalFeeLabel}</span>
                       <div className="text-2xl sm:text-3xl font-black text-slate-900">
-                        {resubmissionTarget ? '₹0 (Paid)' : `₹${totalFee}`}
+                        {resubmissionTarget ? '₹0 (Paid)' : `₹${totalFee.toLocaleString('en-IN')}`}
                       </div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">
-                        {resubmissionTarget
-                          ? 'Resubmission is free of charge (previously paid)'
-                          : `FormSeva Assisted Fee: ₹${form.service_fee}${form.official_fee > 0 ? ` + Govt Official Fee: ₹${form.official_fee}` : ''}`}
+                      <div className="text-[11px] text-slate-600 mt-0.5 space-y-0.5">
+                        {resubmissionTarget ? (
+                          <span>Resubmission is free of charge (previously paid)</span>
+                        ) : isNeet ? (
+                          <div>
+                            <span className="font-semibold text-slate-800">
+                              NTA Govt Exam Fee: ₹{effectiveOfficialFee.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-emerald-700 font-medium"> ({neetFeeInfo?.categoryName})</span>
+                            <span> + FormSeva Assisted Service Fee: ₹{effectiveServiceFee}</span>
+                          </div>
+                        ) : (
+                          <span>
+                            {`FormSeva Assisted Fee: ₹${effectiveServiceFee}${effectiveOfficialFee > 0 ? ` + Govt Official Fee: ₹${effectiveOfficialFee}` : ''}`}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -787,7 +935,7 @@ export default function FormDetailPage() {
                       <span>
                         {resubmissionTarget
                           ? (language === 'gu' ? 'સુધારેલી અરજી ફરીથી મોકલો' : 'Resubmit Corrected Application')
-                          : `${t.submitAndPay} (₹${totalFee})`}
+                          : `${t.submitAndPay} (₹${totalFee.toLocaleString('en-IN')})`}
                       </span>
                     </button>
                   </div>

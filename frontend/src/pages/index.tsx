@@ -293,7 +293,9 @@ export default function HomePage() {
                     {form.turnaround_days}d
                   </span>
                   <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm">
-                    ₹{form.official_fee + form.service_fee}
+                    {form.slug === 'neet_exam'
+                      ? '₹1,000 - ₹1,700'
+                      : `₹${form.official_fee + form.service_fee}`}
                   </span>
                 </div>
 
