@@ -38,91 +38,41 @@ export class ApiService {
 
   // AUTH
   static async login(email: string, role: string = 'citizen', fullName?: string, phone?: string, password?: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, role, full_name: fullName, phone, password }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Login failed');
-      }
-      const data = await res.json();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_token', data.access_token);
-        localStorage.setItem('formseva_user', JSON.stringify(data.user));
-      }
-      return data;
-    } catch (e: any) {
-      console.warn('API connection fallback, using local mock auth:', e?.message || e);
-      let resolvedRole = role;
-      let userId = 'c0000000-0000-0000-0000-000000000001';
-      let name = fullName || 'નાગરિક (Citizen)';
-      let district = 'Ahmedabad';
-
-      const lowerEmail = email.toLowerCase().trim();
-      if (lowerEmail.includes('admin') || role === 'admin') {
-        resolvedRole = 'admin';
-        userId = 'admin-001';
-        name = fullName || 'Gujarat Seva Admin';
-      } else if (lowerEmail.includes('operator') || lowerEmail.includes('vicky') || role === 'operator') {
-        resolvedRole = 'operator';
-        userId = 'op-001';
-        name = fullName || 'Vicky Operator';
-      }
-
-      const mockUser = {
-        id: userId,
-        email,
-        role: resolvedRole,
-        full_name: name,
-        district: district,
-        phone: phone || '+91 98250 44551'
-      };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_token', 'mock-token');
-        localStorage.setItem('formseva_user', JSON.stringify(mockUser));
-      }
-      return { access_token: 'mock-token', user: mockUser };
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, role, full_name: fullName, phone, password }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Login failed. Please verify your credentials.');
     }
+    const data = await res.json();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('formseva_token', data.access_token);
+      localStorage.setItem('formseva_user', JSON.stringify(data.user));
+    }
+    return data;
   }
 
   static async googleLogin(email: string, fullName?: string, phone?: string, avatarUrl?: string, idToken?: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, full_name: fullName, phone, avatar_url: avatarUrl, id_token: idToken }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Google authentication failed');
-      }
-      const data = await res.json();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_token', data.access_token);
-        localStorage.setItem('formseva_user', JSON.stringify(data.user));
-      }
-      return data;
-    } catch (e: any) {
-      console.warn('API fallback for Google Auth:', e?.message || e);
-      const mockUser = {
-        id: 'c0000000-0000-0000-0000-000000000001',
-        email,
-        role: 'citizen',
-        full_name: fullName || 'Google User',
-        phone: phone || '+91 98250 44551',
-        auth_provider: 'google'
-      };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_token', 'mock-google-token');
-        localStorage.setItem('formseva_user', JSON.stringify(mockUser));
-      }
-      return { access_token: 'mock-google-token', user: mockUser };
+    const res = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, full_name: fullName, phone, avatar_url: avatarUrl, id_token: idToken }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Google authentication failed.');
     }
+    const data = await res.json();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('formseva_token', data.access_token);
+      localStorage.setItem('formseva_user', JSON.stringify(data.user));
+    }
+    return data;
   }
 
   static async logout(): Promise<void> {
@@ -427,330 +377,128 @@ export class ApiService {
 
   // SUBMISSIONS
   static async createSubmission(formSlug: string, fieldValues: Record<string, any>): Promise<FormSubmission> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/submissions`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ form_slug: formSlug, field_values: fieldValues }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof window !== 'undefined') {
-          const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-          localStorage.setItem('formseva_local_submissions', JSON.stringify([data, ...stored.filter(s => s.id !== data.id)]));
-          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-        }
-        return data;
-      }
-    } catch (e) {
-      console.warn('API connection fallback, using local/Supabase submission flow:', e);
+    const res = await fetch(`${API_BASE_URL}/submissions`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ form_slug: formSlug, field_values: fieldValues }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to submit application.');
     }
-
-    // Fallback: create submission seamlessly
-    const forms = await this.getForms();
-    const form = forms.find(f => f.slug === formSlug || f.id === formSlug) || mockForms.find(m => m.slug === formSlug);
-    const user = this.getCurrentUser();
-
-    const subId = `sub-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const prefix = formSlug.replace(/_/g, '').slice(0, 4).toUpperCase();
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-    const appNumber = `GUJ-2026-${prefix}-${randomNum}`;
-
-    let officialFee = form?.official_fee || 0;
-    const serviceFee = form?.service_fee || 70;
-
-    // Dynamic category calculation for NEET
-    if (formSlug === 'neet_exam') {
-      const cat = String(fieldValues?.category || 'general').toLowerCase();
-      const gender = String(fieldValues?.gender || '').toLowerCase();
-      const pwd = String(fieldValues?.pwd_status || '').toLowerCase();
-      if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
-        officialFee = 1000;
-      } else if (cat === 'gen_ews' || cat === 'obc_ncl') {
-        officialFee = 1600;
-      } else {
-        officialFee = 1700;
-      }
-    }
-
-    const totalFee = officialFee + serviceFee;
-
-    const ops = await this.getOperators();
-    const activeOps = ops.filter(o => o.is_active);
-    const assignedOp = activeOps.length > 0 ? activeOps[Math.floor(Math.random() * activeOps.length)] : undefined;
-
-    const newSubmission: FormSubmission = {
-      id: subId,
-      application_number: appNumber,
-      user_id: user?.id || 'c0000000-0000-0000-0000-000000000001',
-      user_name: user?.full_name || fieldValues.applicant_name || fieldValues.candidate_name || 'Gujarat Citizen',
-      user_phone: user?.phone || fieldValues.mobile_number || '+91 98250 44551',
-      form_id: form?.id || `f-${formSlug}`,
-      form_slug: formSlug,
-      form_title_gu: form?.title_gu || 'અરજી',
-      form_title_hi: form?.title_hi || 'आवेदन',
-      form_title_en: form?.title_en || 'Application',
-      assigned_operator_id: assignedOp?.id || 'b0000000-0000-0000-0000-000000000001',
-      assigned_operator_name: assignedOp?.full_name || 'Vicky Operator',
-      status: 'submitted',
-      official_fee: officialFee,
-      service_fee: serviceFee,
-      total_fee: totalFee,
-      payment_status: 'pending',
-      submitted_at: new Date().toISOString(),
-      field_values: fieldValues,
-      documents: []
-    };
-
-    // Try saving to Supabase if reachable
-    try {
-      await SupabaseRestService.createSubmission({
-        id: newSubmission.id,
-        application_number: newSubmission.application_number,
-        user_id: newSubmission.user_id,
-        form_id: newSubmission.form_id,
-        assigned_operator_id: newSubmission.assigned_operator_id,
-        status: newSubmission.status,
-        official_fee: newSubmission.official_fee,
-        service_fee: newSubmission.service_fee,
-        total_fee: newSubmission.total_fee,
-        payment_status: newSubmission.payment_status,
-        submitted_at: newSubmission.submitted_at
-      });
-    } catch (err) {
-      console.warn('Supabase direct insert notice, stored in local storage:', err);
-    }
-
-    if (typeof window !== 'undefined') {
-      const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      localStorage.setItem('formseva_local_submissions', JSON.stringify([newSubmission, ...stored.filter(s => s.id !== newSubmission.id)]));
-      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-    }
-
-    return newSubmission;
+    return await res.json();
   }
 
   static async getMySubmissions(): Promise<FormSubmission[]> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/submissions/my`, { headers: this.getHeaders() });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-    const stored = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-    return stored.length ? stored : [mockSampleSubmission, mockAdminSubmissions[1]];
+    const res = await fetch(`${API_BASE_URL}/submissions/my`, { headers: this.getHeaders() });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to fetch your applications.');
+    }
+    return await res.json();
   }
 
   static async getSubmissionDetail(id: string): Promise<FormSubmission> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/submissions/${id}`, { headers: this.getHeaders() });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-    const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-    const found = stored.find(s => s.id === id || s.application_number === id);
-    return found || mockAdminSubmissions.find(s => s.id === id || s.application_number === id) || mockSampleSubmission;
+    const res = await fetch(`${API_BASE_URL}/submissions/${id}`, { headers: this.getHeaders() });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to fetch application details.');
+    }
+    return await res.json();
   }
 
   static async resubmitSubmission(submissionId: string, fieldValues: Record<string, any>, note?: string): Promise<FormSubmission> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/submissions/${submissionId}/resubmit`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ field_values: fieldValues, resubmission_note: note }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {
-      console.warn('API Error in resubmitSubmission, updating locally:', e);
+    const res = await fetch(`${API_BASE_URL}/submissions/${submissionId}/resubmit`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ field_values: fieldValues, resubmission_note: note }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to resubmit application.');
     }
-
-    const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-    const idx = stored.findIndex(s => s.id === submissionId || s.application_number === submissionId);
-    if (idx !== -1) {
-      stored[idx] = {
-        ...stored[idx],
-        field_values: { ...stored[idx].field_values, ...fieldValues },
-        status: 'resubmitted',
-        resubmitted_at: new Date().toISOString(),
-        operator_notes: note ? `Applicant note: ${note}` : stored[idx].operator_notes
-      };
-      localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
-      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-      return stored[idx];
-    }
-
-    return {
-      ...mockSampleSubmission,
-      id: submissionId,
-      field_values: fieldValues,
-      status: 'resubmitted',
-      resubmitted_at: new Date().toISOString()
-    };
+    return await res.json();
   }
 
   // IN-APP ASSISTED OTP
   static async getActiveOtp(submissionId: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/otp/active/${submissionId}`, {
-        headers: this.getHeaders()
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-    const found = stored.find(s => s.id === submissionId || s.application_number === submissionId);
-    return found?.active_otp_request || null;
+    const res = await fetch(`${API_BASE_URL}/otp/active/${submissionId}`, {
+      headers: this.getHeaders()
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return await res.json();
   }
 
   static async viewOtp(otpId: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/otp/${otpId}/view`, {
-        headers: this.getHeaders()
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    return { otp_code: '458921', message: 'Demo OTP retrieved' };
+    const res = await fetch(`${API_BASE_URL}/otp/${otpId}/view`, {
+      headers: this.getHeaders()
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to retrieve OTP code.');
+    }
+    return await res.json();
   }
 
   static async triggerOtp(submissionId: string, purposeGu?: string, purposeEn?: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/otp/trigger`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          submission_id: submissionId,
-          otp_purpose_gu: purposeGu,
-          otp_purpose_en: purposeEn
-        }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    const otpReq: OtpRequest = {
-      id: `otp-${Date.now()}`,
-      submission_id: submissionId,
-      operator_id: 'op-001',
-      otp_sequence_number: 1,
-      otp_purpose_gu: purposeGu || 'સરકારી પોર્ટલ ચકાસણી માટે OTP',
-      otp_purpose_hi: 'सरकारी पोर्टल सत्यापन हेतु OTP',
-      otp_purpose_en: purposeEn || 'For Government Portal Verification',
-      status: 'requested',
-      requested_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString()
-    };
-
-    if (typeof window !== 'undefined') {
-      const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      const idx = stored.findIndex(s => s.id === submissionId || s.application_number === submissionId);
-      if (idx >= 0) {
-        stored[idx].active_otp_request = otpReq;
-        stored[idx].status = 'awaiting_otp';
-        localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
-        window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-      }
+    const res = await fetch(`${API_BASE_URL}/otp/trigger`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        submission_id: submissionId,
+        otp_purpose_gu: purposeGu,
+        otp_purpose_en: purposeEn
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to trigger OTP request.');
     }
-
-    return { success: true, otp_request: otpReq };
+    return await res.json();
   }
 
   static async submitOtp(otpRequestId: string, otpCode: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/otp/submit`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          otp_request_id: otpRequestId,
-          otp_code: otpCode
-        }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    if (typeof window !== 'undefined') {
-      const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      let updated = false;
-      for (const s of stored) {
-        if (s.active_otp_request && s.active_otp_request.id === otpRequestId) {
-          s.active_otp_request.status = 'submitted_by_citizen';
-          s.active_otp_request.submitted_at = new Date().toISOString();
-          s.active_otp_request.entered_code_display = otpCode;
-          s.status = 'otp_received';
-          updated = true;
-          break;
-        }
-      }
-      if (updated) {
-        localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
-        window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-      }
+    const res = await fetch(`${API_BASE_URL}/otp/submit`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        otp_request_id: otpRequestId,
+        otp_code: otpCode
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Invalid OTP code. Please verify and try again.');
     }
-
-    return { success: true, message: 'OTP submitted successfully' };
+    return await res.json();
   }
 
   // PAYMENTS
   static async createPaymentIntent(submissionId: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/payments/create-intent`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ submission_id: submissionId }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    let amount = 90;
-    if (typeof window !== 'undefined') {
-      const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      const found = stored.find(s => s.id === submissionId || s.application_number === submissionId);
-      if (found) amount = found.total_fee;
+    const res = await fetch(`${API_BASE_URL}/payments/create-intent`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ submission_id: submissionId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to initialize payment.');
     }
-
-    return {
-      payment_intent_id: `pi_${Date.now()}`,
-      submission_id: submissionId,
-      amount_inr: amount,
-      upi_link: `upi://pay?pa=formseva@sbi&pn=FormSeva%20Gujarat&am=${amount}&cu=INR&tn=Application%20Payment`,
-      qr_code_data: `upi://pay?pa=formseva@sbi&pn=FormSeva%20Gujarat&am=${amount}&cu=INR`
-    };
+    return await res.json();
   }
 
   static async confirmPayment(paymentIntentId: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/payments/confirm-mock/${paymentIntentId}`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (e) {}
-
-    if (typeof window !== 'undefined') {
-      const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      const updated = stored.map(s => ({
-        ...s,
-        payment_status: 'paid' as const
-      }));
-      localStorage.setItem('formseva_local_submissions', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
+    const res = await fetch(`${API_BASE_URL}/payments/confirm-mock/${paymentIntentId}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Payment confirmation failed.');
     }
-
-    return { success: true, message: 'Payment confirmed successfully' };
+    return await res.json();
   }
 
   // OPERATOR WORKBENCH

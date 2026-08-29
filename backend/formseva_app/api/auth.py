@@ -103,8 +103,86 @@ def login_or_register(payload: AuthRequest, response: Response):
 
 @router.post("/google", response_model=AuthResponse)
 def google_auth_login(payload: GoogleAuthRequest, response: Response):
-    # Simplified Google Auth for brevity (similar to Citizen logic above)
-    raise HTTPException(status_code=501, detail="Google Auth not fully migrated yet")
+    """
+    Google OAuth Authentication Endpoint (FS-C2).
+    - Verifies the Google ID token server-side using google.oauth2.id_token.
+    - Decodes and trusts verified email/name from token payload.
+    - Rejects unverified or invalid tokens with 401.
+    - Upserts citizen record with email_hash + envelope encryption.
+    """
+    if not payload.id_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google ID token is required for authentication."
+        )
+
+    # Server-side verification of Google ID token
+    google_user_info = verify_google_id_token(payload.id_token)
+    if not google_user_info or "email" not in google_user_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or unverified Google authentication token."
+        )
+
+    email = google_user_info["email"].lower().strip()
+    full_name = google_user_info.get("name") or payload.full_name or email.split("@")[0].capitalize()
+    
+    supabase = get_db()
+    master_key = get_master_key()
+    email_hash = blind_index(email, master_key)
+
+    res = supabase.table("users").select("*").eq("email_hash", email_hash).execute()
+    user = res.data[0] if res.data else None
+
+    if not user:
+        dek = generate_dek()
+        wrapped_dek = encrypt_dek(dek, master_key)
+        enc_email = encrypt_data(email, dek)
+        enc_phone = encrypt_data(payload.phone, dek) if payload.phone else None
+
+        new_user = {
+            "full_name": full_name,
+            "email": enc_email,
+            "email_hash": email_hash,
+            "phone": enc_phone,
+            "auth_provider": "google",
+            "role": "citizen",
+            "wrapped_dek": wrapped_dek,
+            "preferred_language": "gu"
+        }
+        res = supabase.table("users").insert(new_user).execute()
+        user = res.data[0]
+        user_phone = payload.phone or ""
+    else:
+        dek = decrypt_dek(user["wrapped_dek"], master_key)
+        user_phone = decrypt_data(user.get("phone", ""), dek) if user.get("phone") else ""
+        if payload.phone and not user_phone:
+            enc_phone = encrypt_data(payload.phone, dek)
+            supabase.table("users").update({"phone": enc_phone, "auth_provider": "google"}).eq("id", user["id"]).execute()
+            user_phone = payload.phone
+
+    token_payload = {"sub": user["id"], "email": email, "role": "citizen"}
+    token = create_access_token(token_payload)
+    response.set_cookie(
+        "access_token",
+        token,
+        httponly=True,
+        secure=(settings.ENVIRONMENT == "production"),
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+
+    return AuthResponse(
+        access_token=token,
+        user={
+            **token_payload,
+            "id": user["id"],
+            "full_name": user["full_name"],
+            "phone": user_phone,
+            "preferred_language": user.get("preferred_language", "gu"),
+            "auth_provider": "google"
+        }
+    )
 
 @router.post("/logout")
 def logout(response: Response, current_user: dict = Depends(get_current_user)):
