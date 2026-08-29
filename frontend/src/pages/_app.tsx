@@ -1,10 +1,12 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import { LanguageProvider } from '@/i18n/LanguageContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import Head from 'next/head';
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   return (
+    <ErrorBoundary>
     <LanguageProvider>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,5 +18,6 @@ export default function MyApp({ Component, pageProps }: AppProps) {
       </Head>
       <Component {...pageProps} />
     </LanguageProvider>
+    </ErrorBoundary>
   );
 }

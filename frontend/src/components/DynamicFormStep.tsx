@@ -53,11 +53,26 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
     }
   };
 
+  const getOptions = (field: FormField) => {
+    if (!field.options_json) return [];
+    if (Array.isArray(field.options_json)) return field.options_json;
+    if (typeof field.options_json === 'string') {
+      try {
+        const parsed = JSON.parse(field.options_json);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
       {fields.map((field) => {
         const value = values[field.field_key] !== undefined ? values[field.field_key] : '';
         const error = errors[field.field_key];
+        const options = getOptions(field);
         const isFullWidth =
           field.field_type === 'textarea' ||
           field.field_key === 'residential_address' ||
@@ -103,7 +118,7 @@ export const DynamicFormStep: React.FC<Props> = ({ fields, values, errors, onCha
                 <option value="">
                   {language === 'gu' ? '-- પસંદ કરો --' : language === 'hi' ? '-- चुनें --' : '-- Select --'}
                 </option>
-                {field.options_json?.map((opt) => (
+                {options.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {language === 'gu' ? opt.label_gu : language === 'hi' ? opt.label_hi : opt.label_en}
                   </option>

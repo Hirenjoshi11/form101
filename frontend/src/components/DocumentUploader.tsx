@@ -14,29 +14,33 @@ interface Props {
 export const DocumentUploader: React.FC<Props> = ({ requiredDocs, uploadedFiles, onFileUpload }) => {
   const { t, language } = useLanguage();
 
-  const getDocKey = (doc: ServiceDocument | RequiredDocItem) => {
-    return 'document_type_key' in doc ? doc.document_type_key : doc.key;
+  const getDocKey = (doc: any) => {
+    if (!doc) return 'doc';
+    if (typeof doc === 'string') return doc;
+    return doc.document_type_key || doc.key || 'doc';
   };
 
-  const getDocLabel = (doc: ServiceDocument | RequiredDocItem) => {
-    if ('name_gu' in doc && doc.name_gu) {
+  const getDocLabel = (doc: any) => {
+    if (!doc) return 'Document';
+    if (typeof doc === 'string') return doc;
+    if (doc.name_gu || doc.name_hi || doc.name_en) {
       return language === 'gu' ? doc.name_gu : language === 'hi' ? doc.name_hi : doc.name_en;
     }
-    if ('label_gu' in doc && doc.label_gu) {
+    if (doc.label_gu || doc.label_hi || doc.label_en) {
       return language === 'gu' ? doc.label_gu : language === 'hi' ? doc.label_hi : doc.label_en;
     }
-    return 'Document';
+    return doc.key || doc.document_type_key || 'Document';
   };
 
-  const getWhereToGet = (doc: ServiceDocument | RequiredDocItem) => {
-    if ('where_to_get_gu' in doc) {
+  const getWhereToGet = (doc: any) => {
+    if (doc && typeof doc === 'object') {
       return language === 'gu' ? doc.where_to_get_gu : language === 'hi' ? doc.where_to_get_hi : doc.where_to_get_en;
     }
     return null;
   };
 
-  const getWhyNeeded = (doc: ServiceDocument | RequiredDocItem) => {
-    if ('why_needed_gu' in doc) {
+  const getWhyNeeded = (doc: any) => {
+    if (doc && typeof doc === 'object') {
       return language === 'gu' ? doc.why_needed_gu : language === 'hi' ? doc.why_needed_hi : doc.why_needed_en;
     }
     return null;
@@ -81,12 +85,16 @@ export const DocumentUploader: React.FC<Props> = ({ requiredDocs, uploadedFiles,
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4">
-        {requiredDocs.map((doc) => {
-          const docKey = getDocKey(doc);
+        {Array.isArray(requiredDocs) && requiredDocs.map((doc: any, idx: number) => {
+          const docKey = getDocKey(doc) || `doc_${idx}`;
           const isUploaded = !!uploadedFiles[docKey];
           const uploadedInfo = uploadedFiles[docKey];
-          const isMandatory = 'required_level' in doc ? doc.required_level === 'mandatory' : ('required' in doc ? doc.required : true);
-          const isConditional = 'required_level' in doc ? doc.required_level === 'conditional' : false;
+          const isMandatory = (doc && typeof doc === 'object' && 'required_level' in doc)
+            ? doc.required_level === 'mandatory'
+            : ((doc && typeof doc === 'object' && 'required' in doc) ? doc.required : true);
+          const isConditional = (doc && typeof doc === 'object' && 'required_level' in doc)
+            ? doc.required_level === 'conditional'
+            : false;
           const whereToGet = getWhereToGet(doc);
           const whyNeeded = getWhyNeeded(doc);
 

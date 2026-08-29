@@ -185,11 +185,22 @@ export default function FormDetailPage() {
 
   // Filter required documents based on condition_rules
   const visibleDocuments = useMemo(() => {
-    if (!form?.service_documents || form.service_documents.length === 0) {
-      return form?.required_docs_json || [];
+    let docs = form?.service_documents;
+    if (!docs || !Array.isArray(docs) || docs.length === 0) {
+      const fallback = form?.required_docs_json;
+      if (typeof fallback === 'string') {
+        try {
+          const parsed = JSON.parse(fallback);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(fallback) ? fallback : [];
     }
 
-    return form.service_documents.filter(doc => {
+    return docs.filter(doc => {
+      if (!doc || typeof doc !== 'object') return false;
       if (doc.required_level === 'mandatory') return true;
       if (!doc.condition_rule) return true;
 
@@ -443,9 +454,9 @@ export default function FormDetailPage() {
   const isNeet = form?.slug === 'neet_exam' || (typeof slug === 'string' && slug === 'neet_exam');
 
   const getNeetCategoryFeeInfo = (values: Record<string, any>) => {
-    const cat = String(values.category || 'general').toLowerCase();
-    const gender = String(values.gender || '').toLowerCase();
-    const pwd = String(values.pwd_status || '').toLowerCase();
+    const cat = String(values?.category || 'general').toLowerCase();
+    const gender = String(values?.gender || '').toLowerCase();
+    const pwd = String(values?.pwd_status || '').toLowerCase();
     if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
       return { officialFee: 1000, categoryName: 'SC / ST / PwBD / Third Gender', code: 'sc_st_pwd' };
     }

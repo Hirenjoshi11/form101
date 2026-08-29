@@ -1,7 +1,12 @@
 import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions, OperatorFormAssignment, ServiceDocument, RtoOffice, DistrictGeo, ServiceStep } from './types';
 
 const getApiBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) return process.env.NEXT_PUBLIC_API_BASE_URL;
+  // Accept either NEXT_PUBLIC_API_BASE_URL (full base) or NEXT_PUBLIC_API_URL (host root, as in .env.local).
+  const explicit = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (explicit) {
+    const base = explicit.replace(/\/+$/, '');
+    return base.endsWith('/api/v1') ? base : `${base}/api/v1`;
+  }
   if (typeof window !== 'undefined' && window.location.hostname) {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return `http://${window.location.hostname}:8000/api/v1`;
