@@ -3,98 +3,112 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, status
 from formseva_app.models.schemas import SubmissionResponse, SubmissionStatusUpdate
-from formseva_app.core.database import db
+from formseva_app.core.supabase_client import get_supabase_admin_client
 from formseva_app.core.security import require_role, check_submission_access
 from formseva_app.core.state_machine import validate_status_transition
 from formseva_app.api.submissions import _format_submission_response
 
 router = APIRouter(prefix="/operator", tags=["Operator Workbench"])
 
+def get_db():
+    client = get_supabase_admin_client()
+    if not client:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    return client
+
 @router.get("/my-forms", dependencies=[Depends(require_role(["operator", "admin"]))])
 def get_operator_assigned_forms(current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """Returns the forms that the current operator is authorized/assigned to process."""
+    supabase = get_db()
     if current_user.get("role") == "admin":
-        return list(db.forms.values())
+        res = supabase.table("forms").select("*").execute()
+        return res.data
     
     operator_id = current_user["id"]
-    assigned_form_ids = {
-        a["form_id"] for a in db.operator_form_assignments.values()
-        if a["operator_id"] == operator_id and a.get("is_active", True)
-    }
-    return [f for f in db.forms.values() if f["id"] in assigned_form_ids]
+    res_assign = supabase.table("operator_form_assignments").select("form_id").eq("operator_id", operator_id).eq("is_active", True).execute()
+    assigned_form_ids = [a["form_id"] for a in res_assign.data]
+    
+    if not assigned_form_ids:
+        return []
+        
+    res_forms = supabase.table("forms").select("*").in_("id", assigned_form_ids).execute()
+    return res_forms.data
 
 @router.get("/queue", response_model=List[SubmissionResponse], dependencies=[Depends(require_role(["operator", "admin"]))])
 def get_operator_queue(current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """
-    Returns submissions in the operator queue (FS-H6).
-    Applies PII masking for unassigned submissions.
-    """
+    supabase = get_db()
     operator_id = current_user["id"]
     is_admin = current_user.get("role") == "admin"
     
-    subs = list(db.submissions.values())
-    if not is_admin:
-        assigned_form_ids = {
-            a["form_id"] for a in db.operator_form_assignments.values()
-            if a["operator_id"] == operator_id and a.get("is_active", True)
-        }
-        subs = [
-            s for s in subs 
-            if (s.get("assigned_operator_id") == operator_id) or 
-               (s.get("assigned_operator_id") is None and s.get("form_id") in assigned_form_ids)
-        ]
-    
-    subs.sort(key=lambda s: s["submitted_at"], reverse=True)
+    if is_admin:
+        res = supabase.table("form_submissions").select("*").order("submitted_at", desc=True).execute()
+        subs = res.data
+    else:
+        # Get operator's assigned forms
+        res_assign = supabase.table("operator_form_assignments").select("form_id").eq("operator_id", operator_id).eq("is_active", True).execute()
+        assigned_form_ids = [a["form_id"] for a in res_assign.data]
+        
+        # Submissions assigned to this operator
+        res_assigned = supabase.table("form_submissions").select("*").eq("assigned_operator_id", operator_id).execute()
+        
+        # Unassigned submissions for assigned forms
+        res_unassigned = []
+        if assigned_form_ids:
+            res_unassigned_req = supabase.table("form_submissions").select("*").is_("assigned_operator_id", "null").in_("form_id", assigned_form_ids).execute()
+            res_unassigned = res_unassigned_req.data
+            
+        subs = res_assigned.data + res_unassigned
+        subs.sort(key=lambda s: s.get("submitted_at", ""), reverse=True)
+        
     return [_format_submission_response(s, requester=current_user) for s in subs]
 
 @router.post("/submissions/{submission_id}/start", dependencies=[Depends(require_role(["operator", "admin"]))])
 def start_filing_submission(submission_id: str, current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """
-    Operator begins filing on the Gujarat government portal (FS-H1, FS-H2).
-    Enforces form-eligibility, state transition, and single-operator assignment lock.
-    """
-    sub = db.submissions.get(submission_id)
-    if not sub:
+    supabase = get_db()
+    res = supabase.table("form_submissions").select("*").eq("id", submission_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="Submission not found")
+    sub = res.data[0]
     
-    # Enforce state machine transition (FS-H2)
     validate_status_transition(sub.get("status", "submitted"), "operator_filling")
     
     is_admin = current_user.get("role") == "admin"
     operator_id = current_user["id"]
     
     if not is_admin:
-        # Check operator eligibility for this form category
-        is_form_eligible = any(
-            a["operator_id"] == operator_id and a["form_id"] == sub["form_id"] and a.get("is_active", True)
-            for a in db.operator_form_assignments.values()
-        )
-        if not is_form_eligible:
+        res_eligibility = supabase.table("operator_form_assignments").select("*").eq("operator_id", operator_id).eq("form_id", sub["form_id"]).eq("is_active", True).execute()
+        if not res_eligibility.data:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access forbidden: You are not certified/eligible to process this form category."
             )
-        
-        # Enforce strict assignment check
+            
         if sub.get("assigned_operator_id") and sub["assigned_operator_id"] != operator_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access forbidden: This application is assigned to another operator."
             )
+            
+    operator_name = current_user.get("full_name", "ઓપરેટર")
+    if not is_admin:
+        res_op = supabase.table("operators").select("full_name").eq("id", current_user["id"]).execute()
+        if res_op.data:
+            operator_name = res_op.data[0].get("full_name", operator_name)
+            
+    now_iso = datetime.now(timezone.utc).isoformat()
     
-    operator = db.operators.get(current_user["id"])
-    operator_name = operator.get("full_name", current_user.get("full_name", "ઓપરેટર"))
+    # Update submission
+    update_data = {
+        "assigned_operator_id": current_user["id"],
+        "status": "operator_filling",
+        "operator_started_at": now_iso,
+        "updated_at": now_iso
+    }
+    res_upd = supabase.table("form_submissions").update(update_data).eq("id", submission_id).execute()
+    sub.update(update_data)
     
-    # Update status and assign to current operator
-    sub["assigned_operator_id"] = current_user["id"]
-    sub["status"] = "operator_filling"
-    sub["operator_started_at"] = datetime.now(timezone.utc)
-    sub["updated_at"] = datetime.now(timezone.utc)
-    
-    # Trigger in-app notification to citizen
-    notif_id = str(uuid.uuid4())
-    db.notifications[notif_id] = {
-        "id": notif_id,
+    # Notification
+    notif = {
+        "id": str(uuid.uuid4()),
         "user_id": sub["user_id"],
         "submission_id": sub["id"],
         "title_gu": f"ઓપરેટર {operator_name} કામગીરી કરી રહ્યા છે",
@@ -105,11 +119,12 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
         "message_en": f"Operator {operator_name} has started filing your application on the government portal. Please be ready with the OTP sent to your phone.",
         "notification_type": "status_change",
         "is_read": False,
-        "created_at": datetime.now(timezone.utc)
+        "created_at": now_iso
     }
+    supabase.table("notifications").insert(notif).execute()
     
     # Audit log
-    db.audit_logs.append({
+    audit = {
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": current_user.get("role", "operator"),
@@ -117,48 +132,47 @@ def start_filing_submission(submission_id: str, current_user: dict = Depends(req
         "entity_type": "form_submissions",
         "entity_id": sub["id"],
         "new_state": {"status": "operator_filling", "operator_id": current_user["id"]},
-        "created_at": datetime.now(timezone.utc)
-    })
+        "created_at": now_iso
+    }
+    supabase.table("audit_log").insert(audit).execute()
     
     return {"message": "Started filing successfully", "submission": _format_submission_response(sub, requester=current_user)}
 
 @router.post("/submissions/{submission_id}/update-status", dependencies=[Depends(require_role(["operator", "admin"]))])
 def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate, current_user: dict = Depends(require_role(["operator", "admin"]))):
-    """
-    Update application filing status (FS-H1, FS-H2).
-    Enforces assigned operator authorization and state machine transition rules.
-    """
+    supabase = get_db()
     sub = check_submission_access(submission_id, current_user, require_write=True, require_assigned_operator=True)
     
-    # Enforce state machine transition (FS-H2)
     validate_status_transition(sub["status"], payload.status)
-    
     old_status = sub["status"]
-    sub["status"] = payload.status
-    if payload.operator_notes:
-        sub["operator_notes"] = payload.operator_notes
-    if payload.govt_portal_application_id:
-        sub["govt_portal_application_id"] = payload.govt_portal_application_id
-    if payload.rejection_reason:
-        sub["rejection_reason"] = payload.rejection_reason
-    if payload.certificate_url:
-        sub["certificate_url"] = payload.certificate_url
-    if payload.certificate_file_name:
-        sub["certificate_file_name"] = payload.certificate_file_name
-        
-    if payload.status == "submitted_to_govt_portal":
-        sub["govt_submitted_at"] = datetime.now(timezone.utc)
-    elif payload.status in ("approved", "rejected", "correction_required"):
-        sub["completed_at"] = datetime.now(timezone.utc)
-        # Update operator completed count if approved
-        if payload.status == "approved":
-            op = db.operators.get(sub.get("assigned_operator_id"))
-            if op:
-                op["completed_count"] = op.get("completed_count", 0) + 1
-            
-    sub["updated_at"] = datetime.now(timezone.utc)
+    now_iso = datetime.now(timezone.utc).isoformat()
     
-    # Notification for citizen
+    update_data = {
+        "status": payload.status,
+        "updated_at": now_iso
+    }
+    
+    if payload.operator_notes: update_data["operator_notes"] = payload.operator_notes
+    if payload.govt_portal_application_id: update_data["govt_portal_application_id"] = payload.govt_portal_application_id
+    if payload.rejection_reason: update_data["rejection_reason"] = payload.rejection_reason
+    if payload.certificate_url: update_data["certificate_url"] = payload.certificate_url
+    if payload.certificate_file_name: update_data["certificate_file_name"] = payload.certificate_file_name
+    
+    if payload.status == "submitted_to_govt_portal":
+        update_data["govt_submitted_at"] = now_iso
+    elif payload.status in ("approved", "rejected", "correction_required"):
+        update_data["completed_at"] = now_iso
+        if payload.status == "approved" and sub.get("assigned_operator_id"):
+            # Update operator completed count
+            op_res = supabase.table("operators").select("completed_count").eq("id", sub["assigned_operator_id"]).execute()
+            if op_res.data:
+                cc = op_res.data[0].get("completed_count", 0) + 1
+                supabase.table("operators").update({"completed_count": cc}).eq("id", sub["assigned_operator_id"]).execute()
+                
+    supabase.table("form_submissions").update(update_data).eq("id", submission_id).execute()
+    sub.update(update_data)
+    
+    # Notification
     status_messages = {
         "submitted_to_govt_portal": {
             "title_gu": "સરકારી પોર્ટલ પર અરજી જમા થઈ ગઈ",
@@ -196,9 +210,8 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
     
     notif_info = status_messages.get(payload.status)
     if notif_info:
-        notif_id = str(uuid.uuid4())
-        db.notifications[notif_id] = {
-            "id": notif_id,
+        notif = {
+            "id": str(uuid.uuid4()),
             "user_id": sub["user_id"],
             "submission_id": sub["id"],
             "title_gu": notif_info["title_gu"],
@@ -209,10 +222,11 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
             "message_en": notif_info["msg_en"],
             "notification_type": "status_change",
             "is_read": False,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": now_iso
         }
-    
-    db.audit_logs.append({
+        supabase.table("notifications").insert(notif).execute()
+        
+    audit = {
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": current_user.get("role", "operator"),
@@ -221,7 +235,8 @@ def update_submission_status(submission_id: str, payload: SubmissionStatusUpdate
         "entity_id": sub["id"],
         "old_state": {"status": old_status},
         "new_state": {"status": payload.status, "rejection_reason": payload.rejection_reason, "operator_notes": payload.operator_notes},
-        "created_at": datetime.now(timezone.utc)
-    })
+        "created_at": now_iso
+    }
+    supabase.table("audit_log").insert(audit).execute()
     
     return {"message": "Status updated successfully", "submission": _format_submission_response(sub)}

@@ -126,19 +126,21 @@ export default function TrackPage() {
     downloadReceiptPdf(sub, language);
   };
 
-  const handleOpenOtp = (sub: FormSubmission) => {
-    setActiveOtpModal({
-      id: `otp_${sub.id}`,
-      submission_id: sub.id,
-      operator_id: sub.assigned_operator_id || 'operator_1',
-      otp_sequence_number: 1,
-      otp_purpose_en: 'Digital Gujarat Portal Assisted Verification',
-      otp_purpose_gu: 'ડિજિટલ ગુજરાત પોર્ટલ ચકાસણી માટે OTP',
-      otp_purpose_hi: 'डिजिटल गुजरात पोर्टल सत्यापन हेतु OTP',
-      status: 'requested',
-      requested_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 10 * 60000).toISOString(),
-    });
+  const handleOpenOtp = async (sub: FormSubmission) => {
+    if (sub.active_otp_request) {
+      setActiveOtpModal(sub.active_otp_request);
+    } else {
+      try {
+        const data = await ApiService.getActiveOtp(sub.id);
+        if (data.active_otp) {
+          setActiveOtpModal(data.active_otp);
+        } else {
+          showToast('No active OTP prompt found.');
+        }
+      } catch (e) {
+        alert('Failed to load active OTP request');
+      }
+    }
   };
 
   const handleSubmitOtp = async (code: string) => {

@@ -105,6 +105,7 @@ export default function OperatorPage() {
   const [otpPurposeEn, setOtpPurposeEn] = useState('Digital Gujarat Revenue Portal Login');
   const [otpPurposeGu, setOtpPurposeGu] = useState('ડિજિટલ ગુજરાત પોર્ટલ લોગિન માટે');
   const [otpSending, setOtpSending] = useState(false);
+  const [decryptedOtp, setDecryptedOtp] = useState<string | null>(null);
 
   // Rejection Modal
   const [showRejectionModal, setShowRejectionModal] = useState(false);
@@ -365,6 +366,24 @@ export default function OperatorPage() {
   }, [operatorRelevantSubmissions]);
 
   // ── Actions ──
+  
+  // Auto-fetch decrypted OTP
+  useEffect(() => {
+    const fetchDecryptedOtp = async () => {
+      if (selectedSubmission?.status === 'otp_received' && selectedSubmission?.active_otp_request?.id) {
+        try {
+          const res = await ApiService.viewOtp(selectedSubmission.active_otp_request.id);
+          setDecryptedOtp(res.otp_value);
+        } catch (e) {
+          console.error("Failed to fetch decrypted OTP", e);
+        }
+      } else {
+        setDecryptedOtp(null);
+      }
+    };
+    fetchDecryptedOtp();
+  }, [selectedSubmission]);
+
   const handleStartFiling = async (subToStart?: FormSubmission) => {
     const target = subToStart || selectedSubmission;
     if (!target) return;
@@ -1232,16 +1251,30 @@ export default function OperatorPage() {
                       </div>
 
                       {selectedSubmission.active_otp_request && (
-                        <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs space-y-1">
-                          <div className="flex justify-between font-bold text-amber-900">
+                        <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs space-y-2">
+                          <div className="flex justify-between font-bold text-amber-900 border-b border-amber-100 pb-2">
                             <span>Status: {selectedSubmission.active_otp_request.status.toUpperCase()}</span>
                             <span className="font-mono text-[10px]">
                               Sent: {new Date(selectedSubmission.active_otp_request.requested_at).toLocaleTimeString()}
                             </span>
                           </div>
-                          <p className="text-slate-600">
-                            Purpose: {selectedSubmission.active_otp_request.otp_purpose_en}
-                          </p>
+                          
+                          {decryptedOtp ? (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                              <p className="text-green-800 text-[11px] font-bold uppercase mb-1">Citizen Submitted OTP:</p>
+                              <p className="text-3xl font-mono font-black text-green-700 tracking-widest">{decryptedOtp}</p>
+                              <p className="text-[10px] text-green-600 mt-1">Auto-filled successfully</p>
+                            </div>
+                          ) : selectedSubmission.status === 'awaiting_otp' ? (
+                            <div className="flex flex-col items-center justify-center p-3 animate-pulse bg-amber-50 rounded-lg">
+                              <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                              <p className="text-amber-800 font-bold">Waiting for citizen...</p>
+                            </div>
+                          ) : (
+                            <p className="text-slate-600">
+                              Purpose: {selectedSubmission.active_otp_request.otp_purpose_en}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

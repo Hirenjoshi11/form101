@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from formseva_app.models.schemas import OperatorResponse, OperatorCreate, OperatorUpdate, AuditLogItem, NotificationResponse
-from formseva_app.core.database import db
+from formseva_app.core.supabase_client import get_supabase_admin_client
+
+def get_db():
+    return get_supabase_admin_client()
 from formseva_app.core.security import require_role, get_current_user
 
 router = APIRouter(prefix="/admin", tags=["Admin Control Panel"])
@@ -11,7 +14,7 @@ router = APIRouter(prefix="/admin", tags=["Admin Control Panel"])
 @router.get("/dashboard-stats", dependencies=[Depends(require_role(["admin"]))])
 def get_dashboard_stats():
     """Returns real-time analytics across all 5 certificate categories and operators."""
-    subs = list(db.submissions.values())
+    subs = get_db().table('form_submissions').select('*').execute().data
     total_submissions = len(subs)
     completed_submissions = len([s for s in subs if s.get("status") == "approved"])
     in_progress = len([s for s in subs if s.get("status") in ("operator_filling", "awaiting_otp", "otp_received", "submitted_to_govt_portal")])
@@ -19,12 +22,12 @@ def get_dashboard_stats():
     
     total_revenue = sum(float(s.get("total_fee", 0)) for s in subs if s.get("payment_status") == "paid")
     
-    operators = list(db.operators.values())
+    operators = get_db().table('operators').select('*').execute().data
     active_operators_count = len([o for o in operators if o.get("is_active", True)])
     
     # Submissions by form
     by_form = {}
-    for form in db.forms.values():
+    for form in get_db().table('forms').select('*').execute().data:
         count = len([s for s in subs if s.get("form_id") == form["id"]])
         by_form[form["slug"]] = {
             "title_gu": form["title_gu"],
@@ -46,13 +49,13 @@ def get_dashboard_stats():
 def list_operators():
     """List all registered operators with their assigned forms."""
     ops = []
-    for op in db.operators.values():
+    for op in get_db().table('operators').select('*').execute().data:
         assigned_form_ids = [
-            a["form_id"] for a in db.operator_form_assignments.values()
+            a["form_id"] for a in get_db().table('operator_form_assignments').select('*').execute().data
             if a["operator_id"] == op["id"] and a.get("is_active", True)
         ]
         assigned_form_slugs = [
-            db.forms[fid]["slug"] for fid in assigned_form_ids if fid in db.forms
+            {f['id']: f for f in get_db().table('forms').select('*').execute().data}[fid]["slug"] for fid in assigned_form_ids if fid in {f['id']: f for f in get_db().table('forms').select('*').execute().data}
         ]
         ops.append({
             **op,
@@ -64,7 +67,7 @@ def list_operators():
 @router.patch("/operators/{operator_id}/toggle-active", dependencies=[Depends(require_role(["admin"]))])
 def toggle_operator_active(operator_id: str, current_user: dict = Depends(require_role(["admin"]))):
     """Admin endpoint to toggle operator active status and sync assignments (FS-L5)."""
-    op = db.operators.get(operator_id)
+    op = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.get(operator_id)
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
         
@@ -74,11 +77,11 @@ def toggle_operator_active(operator_id: str, current_user: dict = Depends(requir
     op["updated_at"] = datetime.now(timezone.utc)
     
     # Synchronize operator form assignments
-    for a in db.operator_form_assignments.values():
+    for a in get_db().table('operator_form_assignments').select('*').execute().data:
         if a.get("operator_id") == operator_id:
             a["is_active"] = new_status
             
-    db.audit_logs.append({
+    get_db().table('audit_log').select('*').execute().data.append({
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": "admin",
@@ -94,9 +97,9 @@ def toggle_operator_active(operator_id: str, current_user: dict = Depends(requir
 def list_operator_assignments():
     """Returns list of all active operator <-> form eligibility assignments."""
     assignments = []
-    for a in db.operator_form_assignments.values():
-        op = db.operators.get(a["operator_id"], {})
-        form = db.forms.get(a["form_id"], {})
+    for a in get_db().table('operator_form_assignments').select('*').execute().data:
+        op = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.get(a["operator_id"], {})
+        form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}.get(a["form_id"], {})
         assignments.append({
             "id": a["id"],
             "operator_id": a["operator_id"],
@@ -117,18 +120,18 @@ def assign_operator_to_form(payload: dict, current_user: dict = Depends(require_
     form_id = payload.get("form_id")
     
     # Resolve slug to ID if needed
-    if form_id not in db.forms:
-        f = next((form for form in db.forms.values() if form.get("slug") == form_id), None)
+    if form_id not in {f['id']: f for f in get_db().table('forms').select('*').execute().data}:
+        f = next((form for form in get_db().table('forms').select('*').execute().data if form.get("slug") == form_id), None)
         if f:
             form_id = f["id"]
             
-    if op_id not in db.operators:
+    if op_id not in {op['id']: op for op in get_db().table('operators').select('*').execute().data}:
         raise HTTPException(status_code=404, detail="Operator not found")
-    if form_id not in db.forms:
+    if form_id not in {f['id']: f for f in get_db().table('forms').select('*').execute().data}:
         raise HTTPException(status_code=404, detail="Form not found")
         
     existing = next((
-        a for a in db.operator_form_assignments.values()
+        a for a in get_db().table('operator_form_assignments').select('*').execute().data
         if a["operator_id"] == op_id and a["form_id"] == form_id
     ), None)
     
@@ -154,15 +157,15 @@ def batch_assign_operator_forms(payload: dict, current_user: dict = Depends(requ
     op_id = payload.get("operator_id")
     form_ids_or_slugs = payload.get("form_ids", [])
     
-    if op_id not in db.operators:
+    if op_id not in {op['id']: op for op in get_db().table('operators').select('*').execute().data}:
         raise HTTPException(status_code=404, detail="Operator not found")
         
     resolved_form_ids = set()
     for item in form_ids_or_slugs:
-        if item in db.forms:
+        if item in {f['id']: f for f in get_db().table('forms').select('*').execute().data}:
             resolved_form_ids.add(item)
         else:
-            f = next((form for form in db.forms.values() if form.get("slug") == item), None)
+            f = next((form for form in get_db().table('forms').select('*').execute().data if form.get("slug") == item), None)
             if f:
                 resolved_form_ids.add(f["id"])
                 
@@ -194,7 +197,7 @@ def remove_operator_assignment(assignment_id: str, form_id: Optional[str] = None
     # Try finding by op_id and form_id
     for k, v in list(db.operator_form_assignments.items()):
         if v.get("operator_id") == assignment_id:
-            if not form_id or v.get("form_id") == form_id or (v.get("form_id") in db.forms and db.forms[v.get("form_id")].get("slug") == form_id):
+            if not form_id or v.get("form_id") == form_id or (v.get("form_id") in {f['id']: f for f in get_db().table('forms').select('*').execute().data} and {f['id']: f for f in get_db().table('forms').select('*').execute().data}[v.get("form_id")].get("slug") == form_id):
                 db.operator_form_assignments.pop(k)
                 return {"message": "Assignment removed successfully"}
     return {"message": "Assignment removed"}
@@ -203,17 +206,17 @@ def remove_operator_assignment(assignment_id: str, form_id: Optional[str] = None
 def get_eligible_operators_for_form(form_id: str):
     """Get all operators who are authorized/assigned to process a specific form."""
     # Resolve slug if passed
-    if form_id not in db.forms:
-        f = next((form for form in db.forms.values() if form.get("slug") == form_id), None)
+    if form_id not in {f['id']: f for f in get_db().table('forms').select('*').execute().data}:
+        f = next((form for form in get_db().table('forms').select('*').execute().data if form.get("slug") == form_id), None)
         if f:
             form_id = f["id"]
             
     eligible_op_ids = {
-        a["operator_id"] for a in db.operator_form_assignments.values()
+        a["operator_id"] for a in get_db().table('operator_form_assignments').select('*').execute().data
         if a["form_id"] == form_id and a.get("is_active", True)
     }
     
-    return [op for op in db.operators.values() if op["id"] in eligible_op_ids and op.get("is_active", True)]
+    return [op for op in get_db().table('operators').select('*').execute().data if op["id"] in eligible_op_ids and op.get("is_active", True)]
 
 @router.post("/operators", response_model=OperatorResponse, dependencies=[Depends(require_role(["admin"]))])
 def create_operator(payload: OperatorCreate, current_user: dict = Depends(require_role(["admin"]))):
@@ -233,9 +236,9 @@ def create_operator(payload: OperatorCreate, current_user: dict = Depends(requir
         "updated_at": datetime.now(timezone.utc)
     }
     
-    db.operators[op_id] = op_data
+    {op['id']: op for op in get_db().table('operators').select('*').execute().data}[op_id] = op_data
     
-    db.audit_logs.append({
+    get_db().table('audit_log').select('*').execute().data.append({
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": "admin",
@@ -251,7 +254,7 @@ def create_operator(payload: OperatorCreate, current_user: dict = Depends(requir
 @router.put("/operators/{operator_id}", dependencies=[Depends(require_role(["admin"]))])
 def update_operator_profile(operator_id: str, payload: OperatorUpdate, current_user: dict = Depends(require_role(["admin"]))):
     """Update operator full profile."""
-    op = db.operators.get(operator_id)
+    op = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.get(operator_id)
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
     
@@ -260,7 +263,7 @@ def update_operator_profile(operator_id: str, payload: OperatorUpdate, current_u
         op[k] = v
     op["updated_at"] = datetime.now(timezone.utc)
     
-    db.audit_logs.append({
+    get_db().table('audit_log').select('*').execute().data.append({
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": "admin",
@@ -275,9 +278,9 @@ def update_operator_profile(operator_id: str, payload: OperatorUpdate, current_u
 @router.delete("/operators/{operator_id}", dependencies=[Depends(require_role(["admin"]))])
 def delete_operator_profile(operator_id: str, current_user: dict = Depends(require_role(["admin"]))):
     """Delete an operator from the platform."""
-    if operator_id in db.operators:
-        deleted = db.operators.pop(operator_id)
-        db.audit_logs.append({
+    if operator_id in {op['id']: op for op in get_db().table('operators').select('*').execute().data}:
+        deleted = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.pop(operator_id)
+        get_db().table('audit_log').select('*').execute().data.append({
             "id": str(uuid.uuid4()),
             "actor_id": current_user["id"],
             "actor_role": "admin",
@@ -292,14 +295,14 @@ def delete_operator_profile(operator_id: str, current_user: dict = Depends(requi
 @router.put("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
 def admin_update_form(form_id: str, payload: dict, current_user: dict = Depends(require_role(["admin"]))):
     """Admin updates form metadata, official/service fee, or turnaround time."""
-    form = db.forms.get(form_id)
+    form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}.get(form_id)
     if not form:
-        form = next((f for f in db.forms.values() if f.get("slug") == form_id or f.get("id") == form_id), None)
+        form = next((f for f in get_db().table('forms').select('*').execute().data if f.get("slug") == form_id or f.get("id") == form_id), None)
     
     if not form:
         form_id = payload.get("id", form_id)
-        db.forms[form_id] = {**payload, "id": form_id, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}
-        form = db.forms[form_id]
+        {f['id']: f for f in get_db().table('forms').select('*').execute().data}[form_id] = {**payload, "id": form_id, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}
+        form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}[form_id]
     else:
         for k, v in payload.items():
             if k != "id":
@@ -312,7 +315,7 @@ def admin_update_form(form_id: str, payload: dict, current_user: dict = Depends(
             f_id = field.get("id", str(uuid.uuid4()))
             db.form_fields[f_id] = {**field, "id": f_id, "form_id": form["id"], "updated_at": datetime.now(timezone.utc)}
 
-    db.audit_logs.append({
+    get_db().table('audit_log').select('*').execute().data.append({
         "id": str(uuid.uuid4()),
         "actor_role": "admin",
         "action": "ADMIN_UPDATE_FORM",
@@ -326,15 +329,15 @@ def admin_update_form(form_id: str, payload: dict, current_user: dict = Depends(
 @router.delete("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
 def admin_delete_form(form_id: str, current_user: dict = Depends(require_role(["admin"]))):
     """Admin removes a service form from public catalog."""
-    form = db.forms.get(form_id)
+    form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}.get(form_id)
     if not form:
-        form_key = next((k for k, v in db.forms.items() if v.get("slug") == form_id or v.get("id") == form_id), None)
+        form_key = next((k for k, v in {f['id']: f for f in get_db().table('forms').select('*').execute().data}.items() if v.get("slug") == form_id or v.get("id") == form_id), None)
         if form_key:
             form_id = form_key
     
-    if form_id in db.forms:
-        deleted = db.forms.pop(form_id)
-        db.audit_logs.append({
+    if form_id in {f['id']: f for f in get_db().table('forms').select('*').execute().data}:
+        deleted = {f['id']: f for f in get_db().table('forms').select('*').execute().data}.pop(form_id)
+        get_db().table('audit_log').select('*').execute().data.append({
             "id": str(uuid.uuid4()),
             "actor_role": "admin",
             "action": "ADMIN_DELETE_FORM",
@@ -352,7 +355,7 @@ def assign_submission(submission_id: str, operator_id: str, current_user: dict =
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
     
-    op = db.operators.get(operator_id)
+    op = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.get(operator_id)
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
     
@@ -361,7 +364,7 @@ def assign_submission(submission_id: str, operator_id: str, current_user: dict =
     sub["updated_at"] = datetime.now(timezone.utc)
     op["assigned_count"] = op.get("assigned_count", 0) + 1
     
-    db.audit_logs.append({
+    get_db().table('audit_log').select('*').execute().data.append({
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
         "actor_role": "admin",
@@ -378,7 +381,7 @@ def assign_submission(submission_id: str, operator_id: str, current_user: dict =
 @router.get("/audit-logs", response_model=List[AuditLogItem], dependencies=[Depends(require_role(["admin"]))])
 def get_audit_logs():
     """Returns tamper-evident audit logs."""
-    logs = list(db.audit_logs)
+    logs = get_db().table('audit_log').select('*').execute().data
     logs.sort(key=lambda l: l["created_at"], reverse=True)
     return logs
 
@@ -387,7 +390,7 @@ def get_audit_logs():
 def get_user_notifications(current_user: dict = Depends(get_current_user)):
     """Fetch notifications for current user."""
     user_id = current_user["id"]
-    user_notifs = [n for n in db.notifications.values() if n["user_id"] == user_id]
+    user_notifs = [n for n in get_db().table('notifications').select('*').execute().data if n["user_id"] == user_id]
     user_notifs.sort(key=lambda n: n["created_at"], reverse=True)
     return user_notifs
 
@@ -423,7 +426,7 @@ def filter_db_payments(from_date: Optional[str] = None, to_date: Optional[str] =
     start_dt = parse_date_boundary(from_date, is_end=False)
     end_dt = parse_date_boundary(to_date, is_end=True)
     
-    payments_list = list(db.payments.values())
+    payments_list = get_db().table('payments').select('*').execute().data
     filtered = []
     
     for p in payments_list:
@@ -462,7 +465,7 @@ def filter_db_payments(from_date: Optional[str] = None, to_date: Optional[str] =
             sub = db.submissions.get(p.get("submission_id", ""))
             if not sub:
                 continue
-            op = db.operators.get(sub.get("assigned_operator_id", ""))
+            op = {op['id']: op for op in get_db().table('operators').select('*').execute().data}.get(sub.get("assigned_operator_id", ""))
             op_name = op.get("full_name", "") if op else ""
             if op_name != operator_id and sub.get("assigned_operator_id") != operator_id:
                 continue
@@ -516,7 +519,7 @@ def get_monthly_revenue(year: int = 2026, service_id: Optional[str] = None):
     month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     monthly_buckets = {m: {"gross": 0.0, "govt": 0.0, "portal": 0.0, "txns": 0} for m in range(1, 13)}
     
-    payments = list(db.payments.values())
+    payments = get_db().table('payments').select('*').execute().data
     for p in payments:
         if p.get("status") not in ("succeeded", "paid"):
             continue
@@ -612,8 +615,8 @@ def get_revenue_by_service(from_date: Optional[str] = None, to_date: Optional[st
     Returns revenue by form/service category calculated from real database records.
     """
     filtered = filter_db_payments(from_date, to_date, payment_status="succeeded")
-    forms_map = {f["slug"]: f for f in db.forms.values()}
-    for f in db.forms.values():
+    forms_map = {f["slug"]: f for f in get_db().table('forms').select('*').execute().data}
+    for f in get_db().table('forms').select('*').execute().data:
         forms_map[f["id"]] = f
         
     category_buckets = {}
@@ -697,10 +700,10 @@ def get_billing_transactions(
         filtered = [p for p in filtered if p.get("payment_method") == payment_method]
         
     users_map = db.users
-    forms_map = {f["id"]: f for f in db.forms.values()}
-    for f in db.forms.values():
+    forms_map = {f["id"]: f for f in get_db().table('forms').select('*').execute().data}
+    for f in get_db().table('forms').select('*').execute().data:
         forms_map[f["slug"]] = f
-    operators_map = db.operators
+    operators_map = {op['id']: op for op in get_db().table('operators').select('*').execute().data}
     
     enriched = []
     for p in filtered:
@@ -823,8 +826,8 @@ def get_govt_remittances(from_date: Optional[str] = None, to_date: Optional[str]
         }
     }
     
-    forms_map = {f["slug"]: f for f in db.forms.values()}
-    for f in db.forms.values():
+    forms_map = {f["slug"]: f for f in get_db().table('forms').select('*').execute().data}
+    for f in get_db().table('forms').select('*').execute().data:
         forms_map[f["id"]] = f
         
     dept_buckets = {}
@@ -875,8 +878,8 @@ def get_platform_profit_summary(from_date: Optional[str] = None, to_date: Option
     Returns platform gross earnings, operator processing expenses, and net profit per service.
     """
     filtered = filter_db_payments(from_date, to_date, payment_status="succeeded")
-    forms_map = {f["slug"]: f for f in db.forms.values()}
-    for f in db.forms.values():
+    forms_map = {f["slug"]: f for f in get_db().table('forms').select('*').execute().data}
+    for f in get_db().table('forms').select('*').execute().data:
         forms_map[f["id"]] = f
         
     # Operator processing payout per application

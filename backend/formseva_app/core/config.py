@@ -32,26 +32,14 @@ settings = Settings()
 # ── Security Startup Check (FS-C3: Fail-closed on missing/default secret) ──
 _COMMITTED_INSECURE_SECRET = "gujarat-formseva-jwt-secret-key-2026-secure"
 
-if settings.ENVIRONMENT.lower() == "production":
-    if not settings.SECRET_KEY or settings.SECRET_KEY == _COMMITTED_INSECURE_SECRET or len(settings.SECRET_KEY) < 32:
-        raise RuntimeError(
-            "\n"
-            "╔═══════════════════════════════════════════════════════════════════════╗\n"
-            "║  🛑 FATAL: CRITICAL SECURITY VIOLATION (FS-C3)                        ║\n"
-            "║  Production environment detected with insecure or default SECRET_KEY! ║\n"
-            "║  Application is refusing to start.                                    ║\n"
-            "║  Set SECRET_KEY in environment to a 64+ char random string:           ║\n"
-            "║  python -c 'import secrets; print(secrets.token_urlsafe(64))'         ║\n"
-            "╚═══════════════════════════════════════════════════════════════════════╝"
-        )
-elif settings.SECRET_KEY == _COMMITTED_INSECURE_SECRET:
-    warnings.warn(
+if not settings.SECRET_KEY or settings.SECRET_KEY == _COMMITTED_INSECURE_SECRET or len(settings.SECRET_KEY) < 32:
+    raise RuntimeError(
         "\n"
         "╔═══════════════════════════════════════════════════════════════════════╗\n"
-        "║  ⚠️  DEV WARNING: Using default committed JWT secret (FS-C3).        ║\n"
-        "║  Treat this secret as compromised. Set SECRET_KEY in .env before     ║\n"
-        "║  deploying to staging or production.                                  ║\n"
-        "╚═══════════════════════════════════════════════════════════════════════╝",
-        stacklevel=1,
+        "║  🛑 FATAL: CRITICAL SECURITY VIOLATION (FS-C3)                        ║\n"
+        "║  Environment detected with insecure or default SECRET_KEY!            ║\n"
+        "║  Application is refusing to start.                                    ║\n"
+        "║  Set SECRET_KEY in environment to a 64+ char random string:           ║\n"
+        "║  python -c 'import secrets; print(secrets.token_urlsafe(64))'         ║\n"
+        "╚═══════════════════════════════════════════════════════════════════════╝"
     )
-

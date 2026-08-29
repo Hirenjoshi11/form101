@@ -871,6 +871,34 @@ class DatabaseStore:
         ]
 
         for fld in fields_master:
+            # Inject validation constraints
+            fk = fld["field_key"]
+            ft = fld["field_type"]
+            
+            if fk == "mobile_number":
+                fld["validation_regex"] = r"^[6-9]\d{9}$"
+                fld["validation"] = {"is_integer": True}
+            elif fk == "aadhaar_number":
+                fld["validation_regex"] = r"^\d{12}$"
+                fld["validation"] = {"class": "aadhaar"}
+            elif fk == "pincode":
+                fld["validation_regex"] = r"^[1-9]\d{5}$"
+                fld["validation"] = {"is_integer": True}
+            elif fk == "dob":
+                fld["validation"] = {"class": "dob", "max_date": "today", "min_year": 1900}
+            elif fk == "email":
+                fld["validation_regex"] = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+            elif fk == "pan_card":
+                fld["validation_regex"] = r"^[A-Z]{5}[0-9]{4}[A-Z]$"
+            elif fk in ["annual_income", "family_member_count", "three_year_income"]:
+                fld["validation"] = {"is_integer": True, "min": 1 if fk == "family_member_count" else 0}
+            elif fk == "gross_annual_income":
+                fld["validation"] = {"is_integer": True, "min": 0, "max_ews": 800000}
+            
+            if ft == "number" and "validation_regex" not in fld and "validation" not in fld:
+                fld["validation_regex"] = r"^\d+$"
+                fld["validation"] = {"is_integer": True}
+
             fid = str(uuid.uuid4())
             self.form_fields[fid] = {
                 "id": fid,

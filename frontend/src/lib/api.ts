@@ -333,7 +333,10 @@ export class ApiService {
         headers: this.getHeaders(),
         body: JSON.stringify(form)
       });
-    } catch (e) {}
+    } catch (e) {
+      console.error('API Error in saveForm:', e);
+      throw e;
+    }
     return form;
   }
 
@@ -363,7 +366,10 @@ export class ApiService {
         const data = await res.json();
         return data;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('API Error in toggleFormActive:', e);
+      throw e;
+    }
 
     return updatedForm;
   }
@@ -380,7 +386,10 @@ export class ApiService {
         method: 'DELETE',
         headers: this.getHeaders()
       });
-    } catch (e) {}
+    } catch (e) {
+      console.error('API Error in deleteForm:', e);
+      throw e;
+    }
     return true;
   }
 
@@ -395,53 +404,8 @@ export class ApiService {
       if (!res.ok) throw new Error('Failed to submit application');
       return await res.json();
     } catch (e) {
-      console.warn('API offline: Simulating local submission');
-      const form = mockForms.find(f => f.slug === formSlug) || mockForms[0];
-      
-      let calculatedOfficialFee = form.official_fee;
-      let calculatedServiceFee = form.service_fee;
-      
-      if (formSlug === 'neet_exam') {
-        const cat = String(fieldValues.category || 'general').toLowerCase();
-        const gender = String(fieldValues.gender || '').toLowerCase();
-        const pwd = String(fieldValues.pwd_status || '').toLowerCase();
-        if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
-          calculatedOfficialFee = 1000.0;
-        } else if (cat === 'gen_ews' || cat === 'obc_ncl') {
-          calculatedOfficialFee = 1600.0;
-        } else {
-          calculatedOfficialFee = 1700.0;
-        }
-        calculatedServiceFee = 200.0;
-      }
-      
-      const newSub: FormSubmission = {
-        id: `local-sub-${Date.now()}`,
-        application_number: `FS-2026-GJ-${Math.floor(1000 + Math.random() * 9000)}`,
-        user_id: 'c0000000-0000-0000-0000-000000000001',
-        user_name: fieldValues.applicant_name || fieldValues.candidate_name || 'Rameshbhai Prajapati',
-        user_phone: fieldValues.mobile_number || '9898012345',
-        form_id: form.id,
-        form_slug: form.slug,
-        form_title_gu: form.title_gu,
-        form_title_hi: form.title_hi,
-        form_title_en: form.title_en,
-        assigned_operator_id: 'b0000000-0000-0000-0000-000000000001',
-        assigned_operator_name: 'Bhavik Patel',
-        status: 'submitted',
-        official_fee: calculatedOfficialFee,
-        service_fee: calculatedServiceFee,
-        total_fee: calculatedOfficialFee + calculatedServiceFee,
-        payment_status: 'pending',
-        submitted_at: new Date().toISOString(),
-        field_values: fieldValues,
-        documents: []
-      };
-      
-      const stored = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-      stored.unshift(newSub);
-      localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
-      return newSub;
+      console.error('API Error in createSubmission:', e);
+      throw e;
     }
   }
 
@@ -478,27 +442,39 @@ export class ApiService {
       if (!res.ok) throw new Error('Failed to resubmit application');
       return await res.json();
     } catch (e) {
-      if (typeof window !== 'undefined') {
-        const stored: FormSubmission[] = JSON.parse(localStorage.getItem('formseva_local_submissions') || '[]');
-        const idx = stored.findIndex(s => s.id === submissionId);
-        if (idx >= 0) {
-          stored[idx] = {
-            ...stored[idx],
-            field_values: { ...stored[idx].field_values, ...fieldValues },
-            status: 'resubmitted',
-            resubmitted_at: new Date().toISOString(),
-            operator_notes: note ? `Citizen Resubmission Note: ${note}` : stored[idx].operator_notes
-          };
-          localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
-          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
-          return stored[idx];
-        }
-      }
+      console.error('API Error in resubmitSubmission:', e);
       throw e;
     }
   }
 
   // IN-APP ASSISTED OTP
+  static async getActiveOtp(submissionId: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/otp/active/${submissionId}`, {
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (e) {
+      console.error('API Error in getActiveOtp:', e);
+      throw e;
+    }
+  }
+
+  static async viewOtp(otpId: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/otp/${otpId}/view`, {
+        headers: this.getHeaders()
+      });
+      if (!res.ok) {
+        throw new Error(`Error: ${res.status}`);
+      }
+      return await res.json();
+    } catch (e) {
+      console.error('API Error in viewOtp:', e);
+      throw e;
+    }
+  }
+
   static async triggerOtp(submissionId: string, purposeGu?: string, purposeEn?: string) {
     try {
       const res = await fetch(`${API_BASE_URL}/otp/trigger`, {
@@ -512,7 +488,8 @@ export class ApiService {
       });
       return await res.json();
     } catch (e) {
-      return { message: 'OTP request triggered (local mode)' };
+      console.error('API Error in triggerOtp:', e);
+      throw e;
     }
   }
 
@@ -528,7 +505,8 @@ export class ApiService {
       });
       return await res.json();
     } catch (e) {
-      return { message: 'OTP submitted successfully to operator' };
+      console.error('API Error in submitOtp:', e);
+      throw e;
     }
   }
 
@@ -542,13 +520,8 @@ export class ApiService {
       });
       return await res.json();
     } catch (e) {
-      return {
-        client_secret: 'pi_mock_secret_123',
-        payment_intent_id: 'pi_mock_123',
-        amount_inr: 99.00,
-        currency: 'inr',
-        status: 'created'
-      };
+      console.error('API Error in createPaymentIntent:', e);
+      throw e;
     }
   }
 
@@ -560,7 +533,8 @@ export class ApiService {
       });
       return await res.json();
     } catch (e) {
-      return { message: 'Payment confirmed successfully' };
+      console.error('API Error in confirmPayment:', e);
+      throw e;
     }
   }
 
@@ -615,7 +589,10 @@ export class ApiService {
           localStorage.setItem('formseva_local_submissions', JSON.stringify(stored));
           window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'submissions' } }));
         }
-      } catch (e) {}
+      } catch (e) {
+      console.error('API Error in updateSubmissionStatus:', e);
+      throw e;
+    }
     }
 
     try {
@@ -1254,28 +1231,9 @@ export class ApiService {
         throw new Error(err.detail || 'Failed to submit feedback');
       }
       return await res.json();
-    } catch (e: any) {
-      console.warn('API error submitting feedback, using fallback storage:', e.message);
-      const fallbackItem: FeedbackItem = {
-        id: `fb-${Date.now()}`,
-        user_id: this.getCurrentUser()?.id || null,
-        name: payload.name || 'Anonymous Citizen',
-        email: payload.email || null,
-        mobile: payload.mobile || null,
-        service_id: payload.service_id || 'general',
-        service_name: payload.service_id === 'general' ? 'General Feedback' : payload.service_id,
-        feedback_type: payload.feedback_type,
-        rating: payload.rating,
-        message: payload.message,
-        status: 'NEW',
-        admin_notes: null,
-        created_at: new Date().toISOString(),
-      };
-      if (typeof window !== 'undefined') {
-        const existing = JSON.parse(localStorage.getItem('formseva_feedbacks_local') || '[]');
-        localStorage.setItem('formseva_feedbacks_local', JSON.stringify([fallbackItem, ...existing]));
-      }
-      return fallbackItem;
+    } catch (e) {
+      console.error('API Error in submitFeedback:', e);
+      throw e;
     }
   }
 

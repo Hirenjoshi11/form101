@@ -2,26 +2,31 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from formseva_app.models.schemas import CreatePaymentIntentRequest, PaymentIntentResponse
-from formseva_app.core.database import db
+from formseva_app.core.supabase_client import get_supabase_admin_client
 from formseva_app.core.security import get_current_user
 from formseva_app.core.config import settings
 
 router = APIRouter(prefix="/payments", tags=["Stripe Payments"])
 
+def get_db():
+    client = get_supabase_admin_client()
+    if not client:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    return client
+
 @router.post("/create-intent", response_model=PaymentIntentResponse)
 def create_payment_intent(payload: CreatePaymentIntentRequest, current_user: dict = Depends(get_current_user)):
-    """
-    Creates a Stripe PaymentIntent for the certificate submission.
-    Calculates amount in INR and creates a linked payment record.
-    """
-    sub = db.submissions.get(payload.submission_id)
-    if not sub:
+    supabase = get_db()
+    res = supabase.table("form_submissions").select("*").eq("id", payload.submission_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="Submission not found")
+    sub = res.data[0]
     
     amount_inr = float(sub.get("total_fee", 99.0))
     payment_id = str(uuid.uuid4())
     mock_pi_id = f"pi_mock_{payment_id[:8]}"
     mock_client_secret = f"{mock_pi_id}_secret_{uuid.uuid4().hex[:16]}"
+    now_iso = datetime.now(timezone.utc).isoformat()
     
     payment_record = {
         "id": payment_id,
@@ -33,11 +38,11 @@ def create_payment_intent(payload: CreatePaymentIntentRequest, current_user: dic
         "currency": "inr",
         "status": "created",
         "payment_method": "card",
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc)
+        "created_at": now_iso,
+        "updated_at": now_iso
     }
     
-    db.payments[payment_id] = payment_record
+    supabase.table("payments").insert(payment_record).execute()
     
     return PaymentIntentResponse(
         client_secret=mock_client_secret,
@@ -49,52 +54,50 @@ def create_payment_intent(payload: CreatePaymentIntentRequest, current_user: dic
 
 @router.post("/confirm-mock/{payment_intent_id}")
 def confirm_payment(payment_intent_id: str, current_user: dict = Depends(get_current_user)):
-    """
-    Confirm payment completion (simulating Stripe Webhook / client confirmation).
-    Updates submission status to 'paid' and notifies citizen.
-    """
-    payment = next((p for p in db.payments.values() if p.get("stripe_payment_intent_id") == payment_intent_id or p.get("id") == payment_intent_id), None)
-    if not payment:
+    supabase = get_db()
+    res = supabase.table("payments").select("*").or_(f"stripe_payment_intent_id.eq.{payment_intent_id},id.eq.{payment_intent_id}").execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="Payment record not found")
+    payment = res.data[0]
     
-    # IDOR protection: verify the authenticated user owns this payment
-    if payment.get("user_id") != current_user["id"] and current_user.get("role") != "admin":
+    if payment["user_id"] != current_user["id"] and current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Not authorized to confirm this payment")
-    
-    payment["status"] = "succeeded"
-    payment["updated_at"] = datetime.now(timezone.utc)
-    
-    sub = db.submissions.get(payment["submission_id"])
-    if sub:
-        sub["payment_status"] = "paid"
-        sub["updated_at"] = datetime.now(timezone.utc)
         
-        # Add success notification
-        notif_id = str(uuid.uuid4())
-        db.notifications[notif_id] = {
-            "id": notif_id,
-            "user_id": sub["user_id"],
-            "submission_id": sub["id"],
-            "title_gu": "પેમેન્ટ સફળ રહ્યું",
-            "title_hi": "भुगतान सफल रहा",
-            "title_en": "Payment Successful",
-            "message_gu": f"રૂ. {payment['amount_inr']} નું પેમેન્ટ સફળતાપૂર્વક મળેલ છે. ઓપરેટર હવે તમારી સરકારી ફાઈલિંગ કરશે.",
-            "message_hi": f"रु. {payment['amount_inr']} का भुगतान सफल रहा।",
-            "message_en": f"Payment of INR {payment['amount_inr']} was successful. Your operator is now filing the application.",
-            "notification_type": "payment_success",
-            "is_read": False,
-            "created_at": datetime.now(timezone.utc)
-        }
+    if payment["status"] == "succeeded":
+        return {"message": "Payment already confirmed"}
         
-    db.audit_logs.append({
+    now_iso = datetime.now(timezone.utc).isoformat()
+    supabase.table("payments").update({"status": "succeeded", "updated_at": now_iso}).eq("id", payment["id"]).execute()
+    
+    supabase.table("form_submissions").update({"payment_status": "paid", "updated_at": now_iso}).eq("id", payment["submission_id"]).execute()
+    
+    notif_id = str(uuid.uuid4())
+    notif = {
+        "id": notif_id,
+        "user_id": payment["user_id"],
+        "submission_id": payment["submission_id"],
+        "title_gu": "ચૂકવણી સફળ",
+        "title_hi": "भुगतान सफल",
+        "title_en": "Payment Successful",
+        "message_gu": f"તમારી અરજી માટે ₹{payment['amount_inr']} ની ફી સફળતાપૂર્વક ચૂકવવામાં આવી છે.",
+        "message_hi": f"आपके आवेदन के लिए ₹{payment['amount_inr']} का शुल्क सफलतापूर्वक भुगतान किया गया है।",
+        "message_en": f"Fee of ₹{payment['amount_inr']} for your application has been successfully paid.",
+        "notification_type": "payment_success",
+        "is_read": False,
+        "created_at": now_iso
+    }
+    supabase.table("notifications").insert(notif).execute()
+    
+    audit = {
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
-        "actor_role": "citizen",
-        "action": "PAYMENT_SUCCESS",
+        "actor_role": current_user.get("role", "citizen"),
+        "action": "PAYMENT_CONFIRMED",
         "entity_type": "payments",
         "entity_id": payment["id"],
-        "new_state": {"amount": payment["amount_inr"], "status": "succeeded"},
-        "created_at": datetime.now(timezone.utc)
-    })
+        "new_state": {"status": "succeeded"},
+        "created_at": now_iso
+    }
+    supabase.table("audit_log").insert(audit).execute()
     
-    return {"message": "Payment confirmed successfully", "payment": payment}
+    return {"message": "Payment confirmed successfully", "payment_id": payment["id"]}

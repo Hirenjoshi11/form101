@@ -3,27 +3,29 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from formseva_app.models.schemas import FeedbackCreate, FeedbackResponse, FeedbackStatusUpdate
-from formseva_app.core.database import db
+from formseva_app.core.supabase_client import get_supabase_admin_client
 from formseva_app.core.security import require_role, get_current_user
 
 router = APIRouter(tags=["Feedback & Citizen Reviews"])
 
+def get_db():
+    client = get_supabase_admin_client()
+    if not client:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    return client
+
 @router.post("/feedback", response_model=FeedbackResponse)
 def submit_feedback(payload: FeedbackCreate, current_user: Optional[dict] = Depends(get_current_user)):
-    """
-    Public Citizen Feedback submission endpoint.
-    Accepts user feedback, rating (1-5), category, message, and saves it to the database.
-    """
+    supabase = get_db()
     fb_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now_iso = datetime.now(timezone.utc).isoformat()
     
-    # Resolve service title
     service_name = "General Feedback"
     if payload.service_id and payload.service_id != "general":
-        for form in db.forms.values():
-            if form["slug"] == payload.service_id or form["id"] == payload.service_id:
-                service_name = form.get("title_en", form.get("title_gu", payload.service_id))
-                break
+        res_form = supabase.table("forms").select("*").or_(f"slug.eq.{payload.service_id},id.eq.{payload.service_id}").execute()
+        if res_form.data:
+            form = res_form.data[0]
+            service_name = form.get("title_en", form.get("title_gu", payload.service_id))
 
     user_id = current_user.get("id") if current_user else None
     name = payload.name
@@ -51,109 +53,76 @@ def submit_feedback(payload: FeedbackCreate, current_user: Optional[dict] = Depe
         "message": payload.message.strip(),
         "status": "NEW",
         "admin_notes": None,
-        "created_at": now,
-        "updated_at": None
+        "created_at": now_iso,
+        "updated_at": now_iso
     }
 
-    db.feedbacks[fb_id] = fb_record
+    supabase.table("feedbacks").insert(fb_record).execute()
 
-    # Add audit log
-    db.audit_logs.append({
+    audit = {
         "id": str(uuid.uuid4()),
-        "actor_id": user_id or "anonymous",
-        "actor_role": "citizen" if user_id else "anonymous",
+        "actor_id": user_id,
+        "actor_role": current_user.get("role", "citizen") if current_user else "anonymous",
         "action": "SUBMIT_FEEDBACK",
-        "entity_type": "feedback",
+        "entity_type": "feedbacks",
         "entity_id": fb_id,
-        "created_at": now
-    })
+        "created_at": now_iso
+    }
+    supabase.table("audit_log").insert(audit).execute()
 
-    return FeedbackResponse(**fb_record)
-
+    return fb_record
 
 @router.get("/admin/feedback", response_model=List[FeedbackResponse], dependencies=[Depends(require_role(["admin"]))])
-def list_admin_feedbacks(
-    status: Optional[str] = Query(None, description="Filter by status (NEW, REVIEWED, RESOLVED, ARCHIVED)"),
-    feedback_type: Optional[str] = Query(None, description="Filter by feedback type"),
-    rating: Optional[int] = Query(None, ge=1, le=5, description="Filter by exact rating"),
-    service_id: Optional[str] = Query(None, description="Filter by service"),
-    search: Optional[str] = Query(None, description="Search citizen name, email, or message")
+def get_all_feedback(
+    status: Optional[str] = Query(None, description="Filter by status (NEW, REVIEWED, RESOLVED)"),
+    service_id: Optional[str] = Query(None, description="Filter by service ID"),
+    min_rating: Optional[int] = Query(None, description="Filter by minimum rating")
 ):
-    """
-    Admin endpoint to list and filter all citizen feedback records.
-    """
-    items = list(db.feedbacks.values())
+    supabase = get_db()
+    query = supabase.table("feedbacks").select("*")
+    
+    if status:
+        query = query.eq("status", status)
+    if service_id:
+        query = query.eq("service_id", service_id)
+    if min_rating:
+        query = query.gte("rating", min_rating)
+        
+    res = query.order("created_at", desc=True).execute()
+    return res.data
 
-    if status and status != "all":
-        items = [i for i in items if i.get("status") == status]
-
-    if feedback_type and feedback_type != "all":
-        items = [i for i in items if i.get("feedback_type") == feedback_type]
-
-    if rating and rating > 0:
-        items = [i for i in items if i.get("rating") == rating]
-
-    if service_id and service_id != "all":
-        items = [i for i in items if i.get("service_id") == service_id]
-
-    if search:
-        s_lower = search.lower().strip()
-        items = [
-            i for i in items
-            if s_lower in (i.get("name") or "").lower()
-            or s_lower in (i.get("email") or "").lower()
-            or s_lower in (i.get("mobile") or "").lower()
-            or s_lower in (i.get("message") or "").lower()
-            or s_lower in (i.get("service_name") or "").lower()
-        ]
-
-    # Sort newest first
-    items.sort(key=lambda x: x.get("created_at") or datetime.min, reverse=True)
-    return items
-
-
-@router.get("/admin/feedback/{feedback_id}", response_model=FeedbackResponse, dependencies=[Depends(require_role(["admin"]))])
-def get_feedback_detail(feedback_id: str):
-    """
-    Get detailed view of a single feedback.
-    """
-    fb = db.feedbacks.get(feedback_id)
-    if not fb:
+@router.post("/admin/feedback/{feedback_id}/status", response_model=FeedbackResponse, dependencies=[Depends(require_role(["admin"]))])
+def update_feedback_status(feedback_id: str, payload: FeedbackStatusUpdate, current_user: dict = Depends(require_role(["admin"]))):
+    supabase = get_db()
+    res = supabase.table("feedbacks").select("*").eq("id", feedback_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="Feedback not found")
-    return fb
-
-
-@router.patch("/admin/feedback/{feedback_id}", response_model=FeedbackResponse, dependencies=[Depends(require_role(["admin"]))])
-def update_feedback_status(
-    feedback_id: str,
-    payload: FeedbackStatusUpdate,
-    current_user: dict = Depends(require_role(["admin"]))
-):
-    """
-    Admin updates feedback status (NEW, REVIEWED, RESOLVED, ARCHIVED) and adds internal admin notes.
-    """
-    fb = db.feedbacks.get(feedback_id)
-    if not fb:
-        raise HTTPException(status_code=404, detail="Feedback not found")
-
-    valid_statuses = ["NEW", "REVIEWED", "RESOLVED", "ARCHIVED"]
-    if payload.status not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {valid_statuses}")
-
-    now = datetime.now(timezone.utc)
-    fb["status"] = payload.status
+        
+    fb = res.data[0]
+    old_status = fb["status"]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    
+    update_data = {
+        "status": payload.status,
+        "updated_at": now_iso
+    }
     if payload.admin_notes is not None:
-        fb["admin_notes"] = payload.admin_notes
-    fb["updated_at"] = now
-
-    db.audit_logs.append({
+        update_data["admin_notes"] = payload.admin_notes
+        
+    res_upd = supabase.table("feedbacks").update(update_data).eq("id", feedback_id).execute()
+    fb.update(update_data)
+    
+    audit = {
         "id": str(uuid.uuid4()),
         "actor_id": current_user["id"],
-        "actor_role": "admin",
-        "action": f"UPDATE_FEEDBACK_STATUS_{payload.status}",
-        "entity_type": "feedback",
+        "actor_role": current_user.get("role", "admin"),
+        "action": f"UPDATE_FEEDBACK_{payload.status.upper()}",
+        "entity_type": "feedbacks",
         "entity_id": feedback_id,
-        "created_at": now
-    })
-
-    return FeedbackResponse(**fb)
+        "old_state": {"status": old_status},
+        "new_state": {"status": payload.status, "admin_notes": payload.admin_notes},
+        "created_at": now_iso
+    }
+    supabase.table("audit_log").insert(audit).execute()
+    
+    return fb
