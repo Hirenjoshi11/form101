@@ -45,7 +45,7 @@ export const AddOperatorModal: React.FC<AddOperatorModalProps> = ({
         district,
         is_active: true
       };
-      const newOp = await ApiService.createOperator(payload);
+      const newOp = await ApiService.addOperator(payload);
       const newFormIds = await ApiService.updateOperatorAssignments(newOp.id, selectedFormIds);
       
       onOperatorAdded({ ...newOp, assigned_form_ids: newFormIds });
