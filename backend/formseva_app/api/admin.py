@@ -295,36 +295,70 @@ def delete_operator_profile(operator_id: str, current_user: dict = Depends(requi
 @router.put("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
 def admin_update_form(form_id: str, payload: dict, current_user: dict = Depends(require_role(["admin"]))):
     """Admin updates form metadata, official/service fee, or turnaround time."""
-    form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}.get(form_id)
-    if not form:
-        form = next((f for f in get_db().table('forms').select('*').execute().data if f.get("slug") == form_id or f.get("id") == form_id), None)
+    supabase = get_db()
+    existing = supabase.table('forms').select('*').or_(f"id.eq.{form_id},slug.eq.{form_id}").limit(1).execute().data
+    if not existing:
+        raise HTTPException(status_code=404, detail="Form not found")
     
-    if not form:
-        form_id = payload.get("id", form_id)
-        {f['id']: f for f in get_db().table('forms').select('*').execute().data}[form_id] = {**payload, "id": form_id, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}
-        form = {f['id']: f for f in get_db().table('forms').select('*').execute().data}[form_id]
-    else:
-        for k, v in payload.items():
-            if k != "id":
-                form[k] = v
-        form["updated_at"] = datetime.now(timezone.utc)
+    target_id = existing[0]["id"]
+    allowed_keys = [
+        "title_en", "title_gu", "title_hi",
+        "description_en", "description_gu", "description_hi",
+        "department_name_en", "department_name_gu", "department_name_hi",
+        "service_fee", "official_fee", "turnaround_days", "expected_otp_count",
+        "is_active", "category", "myth_en", "myth_gu", "fact_en", "fact_gu",
+        "sort_order", "exam_year"
+    ]
+    update_data = {k: payload[k] for k in allowed_keys if k in payload and payload[k] is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    res = supabase.table('forms').update(update_data).eq('id', target_id).execute().data
+    updated_form = res[0] if res else {**existing[0], **update_data}
     
     # Save fields if provided
     if "fields" in payload and isinstance(payload["fields"], list):
         for field in payload["fields"]:
-            f_id = field.get("id", str(uuid.uuid4()))
-            db.form_fields[f_id] = {**field, "id": f_id, "form_id": form["id"], "updated_at": datetime.now(timezone.utc)}
+            f_id = field.get("id") or str(uuid.uuid4())
+            field_payload = {
+                "id": f_id,
+                "form_id": target_id,
+                "field_key": field.get("field_key"),
+                "step_section": field.get("step_section", "applicant"),
+                "field_type": field.get("field_type", "text"),
+                "label_gu": field.get("label_gu", ""),
+                "label_hi": field.get("label_hi", ""),
+                "label_en": field.get("label_en", ""),
+                "placeholder_gu": field.get("placeholder_gu"),
+                "placeholder_hi": field.get("placeholder_hi"),
+                "placeholder_en": field.get("placeholder_en"),
+                "help_text_gu": field.get("help_text_gu"),
+                "help_text_hi": field.get("help_text_hi"),
+                "help_text_en": field.get("help_text_en"),
+                "is_required": field.get("is_required", True),
+                "sort_order": field.get("sort_order", 0),
+                "options_json": field.get("options_json"),
+                "validation_regex": field.get("validation_regex"),
+                "validation": field.get("validation")
+            }
+            try:
+                supabase.table('form_fields').upsert(field_payload).execute()
+            except Exception:
+                pass
 
-    get_db().table('audit_log').select('*').execute().data.append({
-        "id": str(uuid.uuid4()),
-        "actor_role": "admin",
-        "action": "ADMIN_UPDATE_FORM",
-        "entity_type": "forms",
-        "entity_id": form["id"],
-        "new_state": form,
-        "created_at": datetime.now(timezone.utc)
-    })
-    return form
+    try:
+        supabase.table('audit_log').insert({
+            "id": str(uuid.uuid4()),
+            "actor_role": "admin",
+            "action": "ADMIN_UPDATE_FORM",
+            "entity_type": "forms",
+            "entity_id": target_id,
+            "new_state": update_data,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+    except Exception:
+        pass
+
+    return updated_form
 
 @router.delete("/forms/{form_id}", dependencies=[Depends(require_role(["admin"]))])
 def admin_delete_form(form_id: str, current_user: dict = Depends(require_role(["admin"]))):

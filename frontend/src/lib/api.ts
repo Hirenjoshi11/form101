@@ -324,23 +324,27 @@ export class ApiService {
     let updatedForms: CertificateForm[];
     if (existingIndex >= 0) {
       updatedForms = [...forms];
-      updatedForms[existingIndex] = form;
+      updatedForms[existingIndex] = { ...forms[existingIndex], ...form };
     } else {
       updatedForms = [form, ...forms];
     }
     if (typeof window !== 'undefined') {
       localStorage.setItem('formseva_custom_forms_v6', JSON.stringify(updatedForms));
-      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
+      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms', form } }));
+      window.dispatchEvent(new Event('storage'));
     }
     try {
-      await fetch(`${API_BASE_URL}/admin/forms/${form.id}`, {
+      const res = await fetch(`${API_BASE_URL}/admin/forms/${form.id || form.slug}`, {
         method: 'PUT',
         headers: this.getHeaders(),
         body: JSON.stringify(form)
       });
+      if (res.ok) {
+        const saved = await res.json();
+        return { ...form, ...saved };
+      }
     } catch (e) {
-      console.error('API Error in saveForm:', e);
-      throw e;
+      console.warn('API sync in saveForm warning:', e);
     }
     return form;
   }
