@@ -225,6 +225,68 @@ export default function FormDetailPage() {
     });
   }, [form, fieldValues]);
 
+  const isNeet = form?.slug === 'neet_exam' || (typeof slug === 'string' && slug === 'neet_exam');
+
+  const getNeetCategoryFeeInfo = (values: Record<string, any>) => {
+    const cat = String(values?.category || 'general').toLowerCase();
+    const gender = String(values?.gender || '').toLowerCase();
+    const pwd = String(values?.pwd_status || '').toLowerCase();
+    if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
+      return { officialFee: 1000, categoryName: 'SC / ST / PwBD / Third Gender', code: 'sc_st_pwd' };
+    }
+    if (cat === 'gen_ews' || cat === 'obc_ncl') {
+      return { officialFee: 1600, categoryName: 'General-EWS / OBC-NCL', code: 'ews_obc' };
+    }
+    return { officialFee: 1700, categoryName: 'General (UR)', code: 'general_ur' };
+  };
+
+  const neetFeeInfo = useMemo(() => {
+    if (isNeet) {
+      return getNeetCategoryFeeInfo(fieldValues);
+    }
+    return null;
+  }, [isNeet, fieldValues]);
+
+  const effectiveOfficialFee = neetFeeInfo ? neetFeeInfo.officialFee : (form?.official_fee ?? 0);
+  const effectiveServiceFee = form?.service_fee ?? 200;
+  const totalFee = effectiveOfficialFee + effectiveServiceFee;
+
+  const getFieldsForStep = (stepKey: string): FormField[] => {
+    const defaultMock = mockForms.find(m => m.slug === slug || m.id === form?.id);
+    const allFields = (form?.fields && form.fields.length > 0) ? form.fields : (defaultMock?.fields || []);
+
+    if (!allFields || allFields.length === 0) return [];
+
+    // 1. Direct match with step_section
+    const directMatches = allFields.filter(f => f.step_section === stepKey);
+    if (directMatches.length > 0) return directMatches;
+
+    // 2. Legacy/Alias Fallback support
+    if (stepKey === 'applicant' || stepKey === 'candidate') {
+      const aliasMatches = allFields.filter(f => f.step_section === 'personal' || f.step_section === 'applicant' || f.step_section === 'candidate');
+      if (aliasMatches.length > 0) return aliasMatches;
+    }
+    if (stepKey === 'address') {
+      const addrMatches = allFields.filter(f => f.step_section === 'address');
+      if (addrMatches.length > 0) return addrMatches;
+    }
+    if (['family_income', 'three_year_income', 'property_assets', 'land_location', 'licence_service', 'rto_selection', 'academic', 'exam_details'].includes(stepKey)) {
+      const legacyMatches = allFields.filter(f => f.step_section === stepKey || f.step_section === 'specific');
+      if (legacyMatches.length > 0) return legacyMatches;
+    }
+
+    // 3. Fallback for the first step if no match was found:
+    if (currentStepIdx === 0) {
+      const firstMatches = allFields.filter(f => f.step_section === 'applicant' || f.step_section === 'candidate' || f.step_section === 'personal');
+      if (firstMatches.length > 0) return firstMatches;
+      return allFields;
+    }
+
+    return directMatches;
+  };
+
+  const currentStepFields = getFieldsForStep(activeStepKey);
+
   const getTitle = (f: CertificateForm) =>
     language === 'gu' ? f.title_gu : language === 'hi' ? f.title_hi : f.title_en;
 
@@ -455,68 +517,6 @@ export default function FormDetailPage() {
       </div>
     );
   }
-
-  const isNeet = form?.slug === 'neet_exam' || (typeof slug === 'string' && slug === 'neet_exam');
-
-  const getNeetCategoryFeeInfo = (values: Record<string, any>) => {
-    const cat = String(values?.category || 'general').toLowerCase();
-    const gender = String(values?.gender || '').toLowerCase();
-    const pwd = String(values?.pwd_status || '').toLowerCase();
-    if (pwd === 'yes' || gender === 'third_gender' || cat === 'sc' || cat === 'st') {
-      return { officialFee: 1000, categoryName: 'SC / ST / PwBD / Third Gender', code: 'sc_st_pwd' };
-    }
-    if (cat === 'gen_ews' || cat === 'obc_ncl') {
-      return { officialFee: 1600, categoryName: 'General-EWS / OBC-NCL', code: 'ews_obc' };
-    }
-    return { officialFee: 1700, categoryName: 'General (UR)', code: 'general_ur' };
-  };
-
-  const neetFeeInfo = useMemo(() => {
-    if (isNeet) {
-      return getNeetCategoryFeeInfo(fieldValues);
-    }
-    return null;
-  }, [isNeet, fieldValues]);
-
-  const effectiveOfficialFee = neetFeeInfo ? neetFeeInfo.officialFee : (form?.official_fee ?? 0);
-  const effectiveServiceFee = form?.service_fee ?? 200;
-  const totalFee = effectiveOfficialFee + effectiveServiceFee;
-
-  const getFieldsForStep = (stepKey: string): FormField[] => {
-    const defaultMock = mockForms.find(m => m.slug === slug || m.id === form?.id);
-    const allFields = (form?.fields && form.fields.length > 0) ? form.fields : (defaultMock?.fields || []);
-
-    if (!allFields || allFields.length === 0) return [];
-
-    // 1. Direct match with step_section
-    const directMatches = allFields.filter(f => f.step_section === stepKey);
-    if (directMatches.length > 0) return directMatches;
-
-    // 2. Legacy/Alias Fallback support
-    if (stepKey === 'applicant' || stepKey === 'candidate') {
-      const aliasMatches = allFields.filter(f => f.step_section === 'personal' || f.step_section === 'applicant' || f.step_section === 'candidate');
-      if (aliasMatches.length > 0) return aliasMatches;
-    }
-    if (stepKey === 'address') {
-      const addrMatches = allFields.filter(f => f.step_section === 'address');
-      if (addrMatches.length > 0) return addrMatches;
-    }
-    if (['family_income', 'three_year_income', 'property_assets', 'land_location', 'licence_service', 'rto_selection', 'academic', 'exam_details'].includes(stepKey)) {
-      const legacyMatches = allFields.filter(f => f.step_section === stepKey || f.step_section === 'specific');
-      if (legacyMatches.length > 0) return legacyMatches;
-    }
-
-    // 3. Fallback for the first step if no match was found:
-    if (currentStepIdx === 0) {
-      const firstMatches = allFields.filter(f => f.step_section === 'applicant' || f.step_section === 'candidate' || f.step_section === 'personal');
-      if (firstMatches.length > 0) return firstMatches;
-      return allFields;
-    }
-
-    return directMatches;
-  };
-
-  const currentStepFields = getFieldsForStep(activeStepKey);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
