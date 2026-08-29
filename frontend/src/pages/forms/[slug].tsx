@@ -428,15 +428,16 @@ export default function FormDetailPage() {
 
       if (resubmissionTarget) {
         const result = await ApiService.resubmitSubmission(resubmissionTarget.id, fieldValues, resubmissionNote);
-        setSubmissionId(result.id);
+        setSubmissionId(result?.application_number || result?.id || 'SUB-OK');
         setDone(true);
       } else {
         const result = await ApiService.createSubmission(form.slug, fieldValues);
-        setSubmissionId(result.id);
+        setSubmissionId(result?.application_number || result?.id || 'SUB-OK');
         setDone(true);
       }
-    } catch (e) {
-      alert('Submission failed, please try again.');
+    } catch (e: any) {
+      console.error('Submission error:', e);
+      alert(language === 'gu' ? 'અરજી સબમિટ કરવામાં સમસ્યા આવી, કૃપા કરીને ફરી પ્રયાસ કરો.' : 'Submission failed, please try again.');
     } finally {
       setSubmitting(false);
     }
