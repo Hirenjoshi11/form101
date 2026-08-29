@@ -24,7 +24,7 @@ export const OtpModal: React.FC<Props> = ({ otpRequest, isOpen, onClose, onSubmi
     if (!isOpen) return;
     
     let abortController: AbortController | null = null;
-    if (autoFillConsent && 'credentials' in navigator && ('OTPCredential' in window)) {
+    if (autoFillConsent && typeof navigator !== 'undefined' && 'credentials' in navigator && typeof window !== 'undefined' && 'OTPCredential' in window) {
       abortController = new AbortController();
       navigator.credentials.get({
         otp: { transport: ['sms'] },
