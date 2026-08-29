@@ -43,12 +43,17 @@ export default function FormDetailPage() {
 
   // Pre-fill citizen phone if available in session
   useEffect(() => {
-    const user = ApiService.getCurrentUser();
-    if (user?.phone && !fieldValues.mobile_number) {
-      setFieldValues(prev => ({
-        ...prev,
-        mobile_number: user.phone.replace(/[^0-9]/g, '').slice(-10),
-      }));
+    try {
+      const user = ApiService.getCurrentUser();
+      const phone = user?.phone || user?.mobile_number || (user as any)?.mobile;
+      if (phone && !fieldValues.mobile_number) {
+        setFieldValues(prev => ({
+          ...prev,
+          mobile_number: String(phone).replace(/[^0-9]/g, '').slice(-10),
+        }));
+      }
+    } catch (e) {
+      console.warn('Could not prefill user phone:', e);
     }
   }, []);
 

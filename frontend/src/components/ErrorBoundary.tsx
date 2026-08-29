@@ -90,7 +90,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           The page hit an unexpected error. This is often caused by outdated data saved in your
           browser. Clearing it and reloading usually fixes it.
         </p>
-        {isDev && (
+        {this.state.message && (
           <pre
             style={{
               maxWidth: 560,
