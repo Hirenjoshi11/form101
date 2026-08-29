@@ -1,4 +1,5 @@
 import { CertificateForm, FormSubmission, Operator, AdminStats, NotificationItem, FormField, AuditLogItem, UserProfile, FeedbackItem, FeedbackCreatePayload, FeedbackFilterOptions, OperatorFormAssignment, ServiceDocument, RtoOffice, DistrictGeo, ServiceStep } from './types';
+import { SupabaseRestService } from './supabaseRest';
 
 const getApiBaseUrl = () => {
   // Accept either NEXT_PUBLIC_API_BASE_URL (full base) or NEXT_PUBLIC_API_URL (host root, as in .env.local).
@@ -178,23 +179,22 @@ export class ApiService {
     return mockDemoUsers;
   }
 
-  // FORMS
-  static async getForms(): Promise<CertificateForm[]> {
+  // FORMS (Realtime Supabase Sync)
+  static async getForms(forceFresh: boolean = false): Promise<CertificateForm[]> {
     const STORAGE_KEY = 'formseva_custom_forms_v6';
     let loadedForms: CertificateForm[] | null = null;
 
-    if (typeof window !== 'undefined') {
-      const customForms = localStorage.getItem(STORAGE_KEY);
-      if (customForms) {
-        try {
-          const parsed: CertificateForm[] = JSON.parse(customForms);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(f => f.fields && f.fields.length > 0)) {
-            loadedForms = parsed;
-          }
-        } catch (e) {}
+    // 1. Try fetching directly from Supabase for live, fresh database values
+    try {
+      const dbForms = await SupabaseRestService.getForms();
+      if (Array.isArray(dbForms) && dbForms.length > 0) {
+        loadedForms = dbForms;
       }
+    } catch (err) {
+      console.warn('Supabase direct query notice, trying API fallback:', err);
     }
 
+    // 2. Try FastAPI Backend
     if (!loadedForms) {
       try {
         const res = await fetch(`${API_BASE_URL}/forms`, { headers: this.getHeaders() });
@@ -207,11 +207,24 @@ export class ApiService {
       } catch (e) {}
     }
 
+    // 3. Fallback to localStorage / Mock
+    if (!loadedForms && typeof window !== 'undefined' && !forceFresh) {
+      const customForms = localStorage.getItem(STORAGE_KEY);
+      if (customForms) {
+        try {
+          const parsed: CertificateForm[] = JSON.parse(customForms);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loadedForms = parsed;
+          }
+        } catch (e) {}
+      }
+    }
+
     if (!loadedForms) {
       loadedForms = mockForms;
     }
 
-    // Self-healing merge: ensure all 6 services always have full steps, fields, and required docs
+    // Merge missing static UI components while strictly preserving live database rates/fees
     const merged = loadedForms.map(form => {
       const mock = mockForms.find(m => m.slug === form.slug || m.id === form.id);
       if (!mock) return form;
@@ -220,13 +233,17 @@ export class ApiService {
       return {
         ...mock,
         ...form,
+        official_fee: form.official_fee !== undefined ? Number(form.official_fee) : mock.official_fee,
+        service_fee: form.service_fee !== undefined ? Number(form.service_fee) : mock.service_fee,
+        turnaround_days: form.turnaround_days !== undefined ? Number(form.turnaround_days) : mock.turnaround_days,
+        is_active: form.is_active !== undefined ? form.is_active : mock.is_active,
         fields,
         steps: (form.steps && form.steps.length > 0) ? form.steps : mock.steps,
         required_docs_json: (form.required_docs_json && form.required_docs_json.length > 0) ? form.required_docs_json : mock.required_docs_json
       };
     });
 
-    if (typeof window !== 'undefined' && !localStorage.getItem(STORAGE_KEY)) {
+    if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
     }
 
@@ -333,6 +350,15 @@ export class ApiService {
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms', form } }));
       window.dispatchEvent(new Event('storage'));
     }
+
+    // 1. Direct Supabase update
+    try {
+      await SupabaseRestService.updateForm(form.id || form.slug, form);
+    } catch (e) {
+      console.warn('Direct Supabase update notice:', e);
+    }
+
+    // 2. FastAPI backend update fallback
     try {
       const res = await fetch(`${API_BASE_URL}/admin/forms/${form.id || form.slug}`, {
         method: 'PUT',
@@ -343,9 +369,8 @@ export class ApiService {
         const saved = await res.json();
         return { ...form, ...saved };
       }
-    } catch (e) {
-      console.warn('API sync in saveForm warning:', e);
-    }
+    } catch (e) {}
+
     return form;
   }
 
@@ -366,19 +391,18 @@ export class ApiService {
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'forms' } }));
     }
 
+    if (updatedForm) {
+      try {
+        await SupabaseRestService.updateForm(formId, { is_active: (updatedForm as any).is_active });
+      } catch (e) {}
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/forms/${formId}/toggle-active`, {
+      await fetch(`${API_BASE_URL}/forms/${formId}/toggle-active`, {
         method: 'PATCH',
         headers: this.getHeaders()
       });
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-    } catch (e) {
-      console.error('API Error in toggleFormActive:', e);
-      throw e;
-    }
+    } catch (e) {}
 
     return updatedForm;
   }
@@ -649,6 +673,27 @@ export class ApiService {
   }
 
   static async getOperators(): Promise<Operator[]> {
+    try {
+      const dbOps = await SupabaseRestService.getOperators();
+      if (Array.isArray(dbOps) && dbOps.length > 0) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('formseva_operators_v2', JSON.stringify(dbOps));
+        }
+        return dbOps;
+      }
+    } catch (e) {}
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/operators`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('formseva_operators_v2', JSON.stringify(data));
+        }
+        return data;
+      }
+    } catch (e) {}
+
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('formseva_operators_v2');
       if (stored) {
@@ -656,30 +701,28 @@ export class ApiService {
           return JSON.parse(stored);
         } catch (e) {}
       }
+      localStorage.setItem('formseva_operators_v2', JSON.stringify(mockOperators));
     }
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/operators`, { headers: this.getHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch operators');
-      const data = await res.json();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_operators_v2', JSON.stringify(data));
-      }
-      return data;
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('formseva_operators_v2', JSON.stringify(mockOperators));
-      }
-      return mockOperators;
-    }
+    return mockOperators;
   }
 
   static async toggleOperator(operatorId: string) {
     const ops = await this.getOperators();
-    const updated = ops.map(op => (op.id === operatorId ? { ...op, is_active: !op.is_active } : op));
+    let newStatus = true;
+    const updated = ops.map(op => {
+      if (op.id === operatorId) {
+        newStatus = !op.is_active;
+        return { ...op, is_active: newStatus };
+      }
+      return op;
+    });
     if (typeof window !== 'undefined') {
       localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
     }
+    try {
+      await SupabaseRestService.updateOperator(operatorId, { is_active: newStatus });
+    } catch (e) {}
     try {
       await fetch(`${API_BASE_URL}/admin/operators/${operatorId}/toggle-active`, {
         method: 'PUT',
@@ -732,6 +775,9 @@ export class ApiService {
       window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
     }
     try {
+      await SupabaseRestService.updateOperator(operatorId, payload);
+    } catch (e) {}
+    try {
       await fetch(`${API_BASE_URL}/admin/operators/${operatorId}`, {
         method: 'PUT',
         headers: this.getHeaders(),
@@ -743,28 +789,29 @@ export class ApiService {
 
   static async updateOperatorAssignments(operatorId: string, formIds: string[]): Promise<string[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/operator-assignments/batch`, {
+      await SupabaseRestService.updateOperatorAssignments(operatorId, formIds);
+    } catch (e) {}
+
+    const ops = await this.getOperators();
+    const updated = ops.map(op => {
+      if (op.id === operatorId) {
+        return { ...op, assigned_form_ids: formIds };
+      }
+      return op;
+    });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
+    }
+
+    try {
+      await fetch(`${API_BASE_URL}/admin/operator-assignments/batch`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify({ operator_id: operatorId, form_ids: formIds })
       });
-      if (res.ok) {
-        const data = await res.json();
-        const ops = await this.getOperators();
-        const updated = ops.map(op => {
-          if (op.id === operatorId) {
-            return { ...op, assigned_form_ids: data.assigned_form_ids };
-          }
-          return op;
-        });
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('formseva_operators_v2', JSON.stringify(updated));
-          window.dispatchEvent(new CustomEvent('formseva_data_updated', { detail: { type: 'operators' } }));
-        }
-        return data.assigned_form_ids || [];
-      }
     } catch (e) {}
-    return [];
+    return formIds;
   }
 
   static async deleteOperator(operatorId: string): Promise<boolean> {
@@ -1230,81 +1277,115 @@ export class ApiService {
   // FEEDBACK
   static async submitFeedback(payload: FeedbackCreatePayload): Promise<FeedbackItem> {
     try {
+      const created = await SupabaseRestService.createFeedback(payload);
+      if (created) return created;
+    } catch (e) {}
+
+    try {
       const res = await fetch(`${API_BASE_URL}/feedback`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Failed to submit feedback');
-      }
-      return await res.json();
-    } catch (e) {
-      console.error('API Error in submitFeedback:', e);
-      throw e;
+      if (res.ok) return await res.json();
+    } catch (e) {}
+
+    const newItem: FeedbackItem = {
+      id: `fb-${Date.now()}`,
+      service_id: payload.service_id,
+      feedback_type: payload.feedback_type,
+      rating: payload.rating,
+      message: payload.message,
+      name: payload.name || 'Gujarat Citizen',
+      email: payload.email || 'citizen@formseva.in',
+      mobile: payload.mobile || '+91 98250 44551',
+      status: 'PENDING',
+      admin_notes: null,
+      created_at: new Date().toISOString()
+    };
+    if (typeof window !== 'undefined') {
+      const local = JSON.parse(localStorage.getItem('formseva_feedbacks_local') || '[]');
+      localStorage.setItem('formseva_feedbacks_local', JSON.stringify([newItem, ...local]));
     }
+    return newItem;
   }
 
   static async getAdminFeedbacks(filters: FeedbackFilterOptions = {}): Promise<FeedbackItem[]> {
-    const qs = new URLSearchParams();
-    if (filters.status && filters.status !== 'all') qs.set('status', filters.status);
-    if (filters.feedback_type && filters.feedback_type !== 'all') qs.set('feedback_type', filters.feedback_type);
-    if (filters.rating && filters.rating > 0) qs.set('rating', filters.rating.toString());
-    if (filters.service_id && filters.service_id !== 'all') qs.set('service_id', filters.service_id);
-    if (filters.search) qs.set('search', filters.search);
-
+    let items: FeedbackItem[] = [];
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/feedback?${qs.toString()}`, {
-        headers: this.getHeaders()
-      });
-      if (!res.ok) throw new Error('Failed to fetch feedbacks');
-      return await res.json();
-    } catch (e) {
-      console.warn('Fallback admin feedbacks loaded');
-      let items = [...mockFeedbacks];
+      const dbItems = await SupabaseRestService.getFeedback();
+      if (Array.isArray(dbItems) && dbItems.length > 0) {
+        items = dbItems;
+      }
+    } catch (e) {}
+
+    if (items.length === 0) {
+      try {
+        const qs = new URLSearchParams();
+        if (filters.status && filters.status !== 'all') qs.set('status', filters.status);
+        if (filters.feedback_type && filters.feedback_type !== 'all') qs.set('feedback_type', filters.feedback_type);
+        if (filters.rating && filters.rating > 0) qs.set('rating', filters.rating.toString());
+        if (filters.service_id && filters.service_id !== 'all') qs.set('service_id', filters.service_id);
+        if (filters.search) qs.set('search', filters.search);
+
+        const res = await fetch(`${API_BASE_URL}/admin/feedback?${qs.toString()}`, {
+          headers: this.getHeaders()
+        });
+        if (res.ok) {
+          items = await res.json();
+        }
+      } catch (e) {}
+    }
+
+    if (items.length === 0) {
+      items = [...mockFeedbacks];
       if (typeof window !== 'undefined') {
         const local = JSON.parse(localStorage.getItem('formseva_feedbacks_local') || '[]');
         items = [...local, ...items];
       }
-      if (filters.status && filters.status !== 'all') items = items.filter(i => i.status === filters.status);
-      if (filters.feedback_type && filters.feedback_type !== 'all') items = items.filter(i => i.feedback_type === filters.feedback_type);
-      if (filters.rating && filters.rating > 0) items = items.filter(i => i.rating === filters.rating);
-      if (filters.service_id && filters.service_id !== 'all') items = items.filter(i => i.service_id === filters.service_id);
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        items = items.filter(i => (i.name || '').toLowerCase().includes(q) || (i.message || '').toLowerCase().includes(q));
-      }
-      return items;
     }
+
+    if (filters.status && filters.status !== 'all') items = items.filter(i => i.status === filters.status);
+    if (filters.feedback_type && filters.feedback_type !== 'all') items = items.filter(i => i.feedback_type === filters.feedback_type);
+    if (filters.rating && filters.rating > 0) items = items.filter(i => i.rating === filters.rating);
+    if (filters.service_id && filters.service_id !== 'all') items = items.filter(i => i.service_id === filters.service_id);
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      items = items.filter(i => (i.name || '').toLowerCase().includes(q) || (i.message || '').toLowerCase().includes(q));
+    }
+    return items;
   }
 
   static async updateAdminFeedbackStatus(feedbackId: string, status: string, adminNotes?: string): Promise<FeedbackItem> {
+    try {
+      const updated = await SupabaseRestService.updateFeedback(feedbackId, { status: status as any, admin_notes: adminNotes });
+      if (updated) return updated;
+    } catch (e) {}
+
     try {
       const res = await fetch(`${API_BASE_URL}/admin/feedback/${feedbackId}`, {
         method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify({ status, admin_notes: adminNotes })
       });
-      if (!res.ok) throw new Error('Failed to update status');
-      return await res.json();
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        const existing: FeedbackItem[] = JSON.parse(localStorage.getItem('formseva_feedbacks_local') || '[]');
-        const updated = existing.map(item => item.id === feedbackId ? { ...item, status: status as any, admin_notes: adminNotes || item.admin_notes } : item);
-        localStorage.setItem('formseva_feedbacks_local', JSON.stringify(updated));
-      }
-      return {
-        id: feedbackId,
-        service_id: 'general',
-        feedback_type: 'General',
-        rating: 5,
-        message: '',
-        status: status as any,
-        admin_notes: adminNotes || null,
-        created_at: new Date().toISOString()
-      };
+      if (res.ok) return await res.json();
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const existing: FeedbackItem[] = JSON.parse(localStorage.getItem('formseva_feedbacks_local') || '[]');
+      const updated = existing.map(item => item.id === feedbackId ? { ...item, status: status as any, admin_notes: adminNotes || item.admin_notes } : item);
+      localStorage.setItem('formseva_feedbacks_local', JSON.stringify(updated));
     }
+    return {
+      id: feedbackId,
+      service_id: 'general',
+      feedback_type: 'General',
+      rating: 5,
+      message: '',
+      status: status as any,
+      admin_notes: adminNotes || null,
+      created_at: new Date().toISOString()
+    };
   }
 
   // OPERATOR FORM ELIGIBILITY ASSIGNMENTS
